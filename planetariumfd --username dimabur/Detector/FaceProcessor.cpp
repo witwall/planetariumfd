@@ -399,14 +399,14 @@ void processThreads(CvSeq* pFacesSeq){
 			
 			if (pTh->missedCount > 0) pTh->missedCount --;
 			
-			saveThread(pStats->threadId);
+			//saveThread(pStats->threadId);
 
 		}else{
 			if (pTh->missedCount < MAX_ALLOWED_MISSED_COUNT){
 				pTh->missedCount ++;
 			}else{
-				if (saveAndDeleteThread(pStats->threadId))
-					deleteThread(pStats->threadId);
+				//if (saveAndDeleteThread(pStats->threadId))
+				deleteThread(pStats->threadId);
 			}
 		}
 	}
@@ -460,14 +460,14 @@ FDHistoryEntry cvCreateHistoryEntry(IplImage *pImg,CvSeq* pSeqIn){
 	return result;
 }
 
-bool saveThread(int threadId){
-	FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(pThreads,theadId);
-	if (pTh->pFaces->total > MIN_FRAMES_TOSAVE)
-
-}
-
-bool deleteAndSaveThread(int threadId){
-	if (!saveThread(threadId)){
-		deleteThread(threadId);
-	}
-}
+//bool saveThread(int threadId){
+//	FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(pThreads,theadId);
+//	if (pTh->pFaces->total > MIN_FRAMES_TOSAVE)
+//
+//}
+//
+//bool deleteAndSaveThread(int threadId){
+//	if (!saveThread(threadId)){
+//		deleteThread(threadId);
+//	}
+//}
