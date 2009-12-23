@@ -1,10 +1,17 @@
 #include "cv.h"
 #include <stdio.h>
 #include "FaceProcessor.h"
+#include "config.h"
 
-#define FD_HISTORY_LENGTH 50
-#define MAX_ALLOWED_MISSED_COUNT 10
-#define DIST_THRESHOLD 100
+
+
+//YL - size limitation for video..
+#define MAX_FRAMES_PER_THREAD (FD_HISTORY_LENGTH-1)
+
+
+//A face must appear in at least this number of frames
+#define MIN_FACE_OCCURENCES_THRESH 2
+//#define MIN_FACE_OCCURENCES 2 5
 
 CvSeq* pHistory = NULL;
 CvSeq* pThreads = NULL;
@@ -27,14 +34,13 @@ FDFaceThreadStats cvFDFaceThreadStats(CvRect*  pFaceRect,int thId){
 
 CvMemStorage * pHistoryStorage = 0;  
 
+// function definition
 IplImage * createFrameCopy(IplImage * pImg);
 FDHistoryEntry cvCreateHistoryEntry(IplImage *pImg,CvSeq* pSeqIn);
 FDHistoryEntry* addToHistory(IplImage * pImg,CvSeq* pSeqIn);
 void processThreads(CvSeq* pFacesSeq);
 void popHistory();
 void popAndCleanEmptyThreads();
-
-
 FDFaceThreadStats cvFDFaceThreadStats(CvRect*  pFaceRect,int thId);
 
 int FdInit(){
@@ -170,8 +176,8 @@ float pow2(float fn){
 }
 
 float getOverlappingArea(CvRect* pRect1,CvRect* pRect2){
-	CvRect* pUpRight;
-	CvRect* pDownLeft;
+	//CvRect* pUpRight;
+	//CvRect* pDownLeft;
 
 	float left = pRect1->x > pRect2->x ? pRect1->x : pRect2->x;
 	float right1 = pRect1->x + pRect1->width ;
@@ -287,7 +293,7 @@ int FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn,CvSeq** pSeqOut){
 	for(int i =0;i<pThreads->total;i++){
 		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(pThreads,i);
 
-		if ((pTh->nonMissedCount > 5))
+		if ((pTh->nonMissedCount > MIN_FACE_OCCURENCES_THRESH))
 			cvSeqPush(pResultSeq,cvSeqGetLast(pTh->pFaces));
 
 		printf("|   Th%d  %d-%d   ",i,pTh->nonMissedCount,pTh->missedCount);
@@ -358,16 +364,17 @@ void processThreads(CvSeq* pFacesSeq){
 	CvSeq* pUnMatchedFaces = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
 
 	//Distribute faces over matching threads
+	//the loop runs to MAX(num_threads,num_rectangles) and each rectangle is matched to an existing thread
 	int loops = (pFacesSeq->total > pThStatsSeq->total) ? pFacesSeq->total : pThStatsSeq->total;
 	for(int i = 0 ; i < loops;	i++)
 	{			
-		CvRect* pFaceRect = i<pFacesSeq->total ? (CvRect*)cvGetSeqElem(pFacesSeq,i) : NULL;
+		CvRect* pFaceRect = (i < pFacesSeq->total) ? (CvRect*)cvGetSeqElem(pFacesSeq,i) : NULL;
 		
 		printf("Stats : %d ",pThStatsSeq->total);
 	
 		int thStatIndex = matchThreadToFaceByProxymityAndSize(pThStatsSeq,pFaceRect);			
 
-		if (thStatIndex > -1){
+		if (thStatIndex > -1){ //i.e. matched 
 			// Get the thread stat struct
 			FDFaceThreadStats* pMathcedThStats = (FDFaceThreadStats*)cvGetSeqElem(pThStatsSeq,thStatIndex);
 			// Get the thread itself
@@ -385,8 +392,10 @@ void processThreads(CvSeq* pFacesSeq){
 	for(int i = 0; i < pThStatsSeq->total; i++){
 		FDFaceThreadStats* pStats = (FDFaceThreadStats*)cvGetSeqElem(pThStatsSeq,i);
 		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(pThreads,pStats->threadId);
+		
+		// at least one candidate for this thread - choose best
 		if (pTh->pCandidates->total > 0){
-
+			//sort by proximity and size and choose best (i.e. first one)
 			CvRect* pLastThFace = (CvRect*)cvSeqGetLast(pTh->pFaces);
 			if (pTh->pCandidates->total > 1)
 				cvSeqSort(pTh->pCandidates,cmpFacesDistanceAndSize,pLastThFace);
@@ -400,15 +409,21 @@ void processThreads(CvSeq* pFacesSeq){
 			if (pTh->missedCount > 0) pTh->missedCount --;
 			
 			//saveThread(pStats->threadId);
-
-		}else{
+		}
+		// no candidates for thread in this frame:
+		else{
 			if (pTh->missedCount < MAX_ALLOWED_MISSED_COUNT){
 				pTh->missedCount ++;
 			}else{
 				//if (saveAndDeleteThread(pStats->threadId))
 				deleteThread(pStats->threadId);
+//				pTh = NULL;
 			}
 		}
+//		// YL - handle too long lived threads 
+//		if (pTh && (pTh->missedCount + pTh->nonMissedCount) > MAX_FRAMES_PER_THREAD) {
+//			//nothing yet
+//		}
 	}
 
 	// Add Unmatched faces to new threads

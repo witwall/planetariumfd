@@ -6,7 +6,7 @@
 
 
 // Public interface for video capture
-int  initCapture();
+int  initCapture(bool isUseCam = true);
 void closeCapture();
 IplImage * nextVideoFrame();
 
