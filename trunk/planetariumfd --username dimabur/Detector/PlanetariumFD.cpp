@@ -2,7 +2,7 @@
 //
 
 #include "stdafx.h"
-
+#include "PlanteriumFD_globals.h"
 
 
 // TrackFaces.c - by Robin Hewitt, 2007
@@ -26,9 +26,9 @@
 
 //// Constants
 const char * DISPLAY_WINDOW = "DisplayWindow";
-#define OPENCV_ROOT  "D:\\Projects\\OpenCV\\latest_tested_snapshot\\opencv"
 
 
+#define CROP_PLAYBACK_FACE
 
 
 //// Global variables
@@ -40,7 +40,6 @@ int initAll();
 void exitProgram(int code);
 void captureVideoFrame();
 
-#define HISTORY_LENGTH 10;
 //CvRect rectHistory[HISTORY_LENGTH];
 
 CvScalar colorArr[3]= {CV_RGB(255,0,0),
@@ -59,27 +58,38 @@ int _tmain(int argc, _TCHAR* argv[])
 	// is detected
 	while( (char)27!=cvWaitKey(1) )
 	{
+		//Retrieve next image and 
 		// Look for a face in the next video frame
+		
+		//read into pVideoFrameCopy
 		captureVideoFrame();
 				
 		CvSeq* pSeq = 0;
 
+
 		/*int count = */detectFaces(pVideoFrameCopy,&pSeq);
 		
+		//Do some filtration of pSeq into pSeqOut, based on history etc.
 		CvSeq* pSeqOut ;
 		/*int count =*/ FdProcessFaces(pVideoFrameCopy,pSeq,&pSeqOut);
 
-		int count = pSeqOut->total;
+		//Num of detected faces after filtration.
+		int num_faces = pSeqOut->total;
 		//pFaceRect = detectFaces(pVideoFrameCopy);
-		if (count > 0){			
-
-			for(int i = 0 ;i < count;i++){
+		
+		//draw rectrangle for each detected face
+		if (num_faces > 0){	//faces detected (??)
+			
+			for(int i = 0 ;i < num_faces;i++){
 				
 				pFaceRect = (CvRect*)cvGetSeqElem(pSeqOut, i);
 
 				CvPoint pt1 = cvPoint(pFaceRect->x,pFaceRect->y);
 				CvPoint pt2 = cvPoint(pFaceRect->x + pFaceRect->width,pFaceRect->y + pFaceRect->height);
-					
+
+				//cout << "\twidth :" << pFaceRect->width << endl;
+				//cout << "\theight:" << pFaceRect->height << endl;
+				
 				cvRectangle( pVideoFrameCopy, pt1, pt2, colorArr[i%3],2,8,0);
 
 				/*cvEllipseBox(pVideoFrameCopy, faceBox,
@@ -88,7 +98,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				//cvShowImage( DISPLAY_WINDOW, pVideoFrameCopy );
 				//if( (char)27==cvWaitKey(1) ) break;//exitProgram(0);
 			}
-		}else{
+		}else{ //no faces detected
 			Sleep(100);
 		}
 		cvShowImage( DISPLAY_WINDOW, pVideoFrameCopy );
@@ -96,12 +106,19 @@ int _tmain(int argc, _TCHAR* argv[])
 		// exit loop when a face is detected
 		//if(pFaceRect) break;
 		//printf("\n");
-	}
+	
+	} //end input while
+
+
+
+
 
 	CvSeq* pHistory = FdGetHistorySeq();
 
 	int index = 0;
 	// play recorded sequence----------------------------
+	// i.e. just what's in the history
+
 	while( 1 ){
 		if (index > pHistory->total) index = 0;
 		FDHistoryEntry* pHEntry = (FDHistoryEntry*)cvGetSeqElem(pHistory, index++);
@@ -117,14 +134,19 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			CvPoint pt1 = cvPoint(pFaceRect->x,pFaceRect->y);
 			CvPoint pt2 = cvPoint(pFaceRect->x + pFaceRect->width,pFaceRect->y + pFaceRect->height);
-				
+#ifdef CROP_PLAYBACK_FACE
+			cvResetImageROI(pVideoFrameCopy); //this will make us use only the last one
+			assert(pFaceRect != NULL);
+			cvSetImageROI(pVideoFrameCopy,*pFaceRect);
+#else
 			cvRectangle( pVideoFrameCopy, pt1, pt2,
 						 colorArr[i%3],2,8,0);
+#endif
 
 		}
 
 		cvShowImage( DISPLAY_WINDOW, pVideoFrameCopy );
-		
+		cvResetImageROI(pVideoFrameCopy); //CROP_PLAYBACK_FACE
 		if( (char)27==cvWaitKey(1) ) exitProgram(0);
 		Sleep(50);		
 	}
@@ -162,7 +184,12 @@ int _tmain(int argc, _TCHAR* argv[])
 //
 int initAll()
 {
-	if( !initCapture() ) return 0;
+	cout << "Use webcam? (Y/N)" <<endl;
+	
+	char cc = fgetc(stdin);
+	if( !initCapture(cc == 'Y' || cc == 'y') ) 
+		return 0;
+
 	if( !initFaceDet(OPENCV_ROOT
 		"/data/haarcascades/haarcascade_frontalface_default.xml"))
 		return 0;
@@ -217,7 +244,8 @@ void captureVideoFrame()
 {
 	// Capture the next frame
 	IplImage  * pVideoFrame = nextVideoFrame();
-	if( !pVideoFrame ) exitProgram(-1);
+	if( !pVideoFrame ) 
+		exitProgram(-1);
 
 	// Copy it to the display image, inverting it if needed
 	if( !pVideoFrameCopy )

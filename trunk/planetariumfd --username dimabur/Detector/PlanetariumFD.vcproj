@@ -42,7 +42,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="D:\Projects\OpenCV\latest_tested_snapshot\opencv\include\opencv"
+				AdditionalIncludeDirectories="G:\projects\OpenCV2.0\include\opencv"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -63,9 +63,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="cv200d.lib cxcore200d.lib highgui200d.lib"
+				AdditionalDependencies="G:\projects\opencv_src\lib\debug\cv200d.lib G:\projects\opencv_src\lib\debug\cxcore200d.lib G:\projects\opencv_src\lib\debug\highgui200d.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="D:\Projects\OpenCV_CMAKE_BIN\lib\debug"
+				AdditionalLibraryDirectories="G:\projects\OpenCV2.0\bin;G:\projects\OpenCV2.0\lib;D:\Projects\OpenCV_CMAKE_BIN\lib\debug"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -120,6 +120,7 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				AdditionalIncludeDirectories="G:\projects\opencv_src\include\opencv"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
@@ -138,6 +139,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="G:\projects\opencv_src\lib\release\cv200.lib G:\projects\opencv_src\lib\release\cxcore200.lib G:\projects\opencv_src\lib\release\highgui200.lib"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -218,6 +220,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\config.h"
+				>
+			</File>
+			<File
 				RelativePath=".\facedet.h"
 				>
 			</File>
@@ -236,6 +242,10 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 		</Filter>
+		<File
+			RelativePath=".\misc.txt"
+			>
+		</File>
 		<File
 			RelativePath=".\ReadMe.txt"
 			>
