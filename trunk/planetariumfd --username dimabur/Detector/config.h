@@ -14,8 +14,10 @@ using namespace std;
 // ============== Configurable Constants  ==============
 // =====================================================
 
-#define FD_HISTORY_LENGTH 50  
+#define FD_HISTORY_LENGTH 150  
 #define MAX_ALLOWED_MISSED_COUNT 10
+#define MAX_ALLOWED_CONSECUTIVE_MISSES 3
+
 #define DIST_THRESHOLD 100
 //#define OPENCV_ROOT  "D:\\Projects\\OpenCV\\latest_tested_snapshot\\opencv"
 #define OPENCV_ROOT  "G:\\projects\\OpenCV2.0"
@@ -35,6 +37,7 @@ static const char * VIDEO_CROPPED_PLAYBACK_FILENAME = "G:\\projects\\cropped_pla
 
 class NullRect : public CvRect 
 {
+public:
 	NullRect()
 	{
 		x = y = width= height =  -1;
@@ -47,7 +50,7 @@ class NullRect : public CvRect
 
 
 //function tracking on?
-#define FTRACKING
+//#define FTRACKING
 
 class ftracker {
 private:
@@ -73,7 +76,16 @@ public:
 		cout << "Starting " << name << endl;
 #endif
 	}
-	
+	template <class T1,class T2,class T3,class T4>
+	ftracker(const T1 & t1,const T2 & t2 ,const T3 & t3,const T4 & t4)
+	{
+#ifdef FTRACKING
+		ostringstream oss;
+		oss << t1 << "," << t2 << "," << t3 << ',' << t4;
+		name = oss.str();
+		cout << "Starting " << name << endl;
+#endif
+	}
 	/*
 	ftracker(const char * str) : name(str) 
 	{
