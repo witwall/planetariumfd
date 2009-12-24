@@ -11,8 +11,10 @@ typedef struct _Face{
 typedef struct _FaceThread{
 	CvSeq* pFaces;
 	CvSeq* pCandidates; // Candidates to be next face
-	int missedCount;
+	int totalCount;
+	int missedCount; //note, currently (missedCount + nonMissedCount) != total (since nonMissedCount-- is used).
 	int nonMissedCount;
+	int consecutiveMissedCount; //straight consecituve frames with no match for this thread
 }FDFaceThread;
 
 
