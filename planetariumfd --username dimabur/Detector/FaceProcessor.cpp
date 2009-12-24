@@ -28,10 +28,13 @@ FDFaceThreadStats cvFDFaceThreadStats(CvRect*  pFaceRect,int thId){
 
 CvMemStorage * pHistoryStorage = 0;  
 
+
+//const NullRect FACE_PROCESSOR_NULL_RECT;
+
 // function definition
 IplImage * createFrameCopy(IplImage * pImg);
 FDHistoryEntry cvCreateHistoryEntry(IplImage *pImg,CvSeq* pSeqIn);
-FDHistoryEntry* addToHistory(IplImage * pImg,CvSeq* pSeqIn);
+FDHistoryEntry* addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id);
 void processThreads(CvSeq* pFacesSeq);
 void popHistory();
 void popAndCleanEmptyThreads();
@@ -272,23 +275,25 @@ int matchThreadToFaceByProximity(CvSeq* pThIndexes,CvRect* pFaceRect){
 // updates history
 // matches faces to threads
 int FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn,CvSeq** pSeqOut){
-	static int processed_frame_counter = 0;
+	static frame_id_t processed_frame_counter = 0;
 	printf("------------ frame %d ----------------------\n",processed_frame_counter++);
 	
-	FDHistoryEntry* cur = addToHistory(pImg,pSeqIn);
-	CvSeq* pFacesSeq = cur->pFacesSeq;
+	//1. update history 
+	FDHistoryEntry* cur = addToHistory(pImg,pSeqIn,processed_frame_counter);
+	CvSeq* pFacesSeq = cur->pFacesSeq; //faces in this frame
 
 	printf("# Input faces : %d \n",pFacesSeq->total);
 
+	//2. update threads
 	processThreads(cur->pFacesSeq);
 
+	//3. trim history when too long + handle dead threads
 	if (global_pHistory->total > FD_HISTORY_LENGTH){
 		popHistory();
 		popAndCleanEmptyThreads();
 	}
 
-	// We clear global_pResultSeq and re-add all faces above thresh.
-
+	// 4. We clear global_pResultSeq and re-add all faces above thresh.
 	cvClearSeq(global_pResultSeq);
 
 
@@ -298,12 +303,12 @@ int FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn,CvSeq** pSeqOut){
 		if ((pTh->nonMissedCount > MIN_FACE_OCCURENCES_THRESH))
 			cvSeqPush(global_pResultSeq,cvSeqGetLast(pTh->pFaces));
 
-		printf("|   Th%d  %d-%d   ",i,pTh->nonMissedCount,pTh->missedCount);
+		printf("| Th%d  %d-%d  (%d) ",i,pTh->nonMissedCount,pTh->missedCount,pTh->pFaces->total);
 	}
 	printf("\n");
-
+	
+	//5. output
 	*pSeqOut = global_pResultSeq;
-
 	return 0;
 }
 
@@ -369,20 +374,22 @@ void processThreads(CvSeq* pFacesSeq){
 
 	CvSeq* pUnMatchedFaces = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
 
-	//Distribute faces over matching threads
+	//1. Distribute faces over matching threads
 	//the loop runs to MAX(num_threads,num_rectangles) and each rectangle is matched to an existing thread
-	int loops = (pFacesSeq->total > pThStatsSeq->total) ? pFacesSeq->total : pThStatsSeq->total;
+	int num_detected_faces = pFacesSeq->total;
+	int num_existing_threads = pThStatsSeq->total;
+	int loops = (num_detected_faces > num_existing_threads) ?  num_detected_faces : num_existing_threads;
 	for(int i = 0 ; i < loops;	i++)
 	{			
-		CvRect* pFaceRect = (i < pFacesSeq->total) ? (CvRect*)cvGetSeqElem(pFacesSeq,i) : NULL;
+		CvRect* pFaceRect = (i < num_detected_faces) ? (CvRect*)cvGetSeqElem(pFacesSeq,i) : NULL;
 		
 		printf("Stats : %d ",pThStatsSeq->total);
 	
-		int thStatIndex = matchThreadToFaceByProxymityAndSize(pThStatsSeq,pFaceRect);			
+		int matchedThreadStatIndex = matchThreadToFaceByProxymityAndSize(pThStatsSeq,pFaceRect);			
 
-		if (thStatIndex > -1){ //i.e. matched 
+		if (matchedThreadStatIndex > -1){ //i.e. matched 
 			// Get the thread stat struct
-			FDFaceThreadStats* pMathcedThStats = (FDFaceThreadStats*)cvGetSeqElem(pThStatsSeq,thStatIndex);
+			FDFaceThreadStats* pMathcedThStats = (FDFaceThreadStats*)cvGetSeqElem(pThStatsSeq,matchedThreadStatIndex);
 			// Get the thread itself
 			FDFaceThread* pMatchedTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,pMathcedThStats->threadId);	
 			// Add the face to the matching thread
@@ -392,10 +399,11 @@ void processThreads(CvSeq* pFacesSeq){
 		}
 		printf("\n");
 	}
-
+	// 2. Choose best of candidates for relevant threads
 	// Confirm candidates
 	// Those who have candidates have continuation
-	for(int i = 0; i < pThStatsSeq->total; i++){
+	for(int i = 0; i < pThStatsSeq->total; i++)
+	{
 		FDFaceThreadStats* pStats = (FDFaceThreadStats*)cvGetSeqElem(pThStatsSeq,i);
 		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,pStats->threadId);
 		
@@ -419,6 +427,9 @@ void processThreads(CvSeq* pFacesSeq){
 		}
 		// no candidates for thread in this frame:
 		else{
+			//YL - missing rectangle in the thread denoted by NULLs
+			//   This seems to mess up following over threads.
+			//addNewFaceToThread(pTh,NULL);
 			pTh->consecutiveMissedCount++;
 			if (++pTh->missedCount > MAX_ALLOWED_MISSED_COUNT){
 				//if (saveAndDeleteThread(pStats->threadId))
@@ -430,7 +441,7 @@ void processThreads(CvSeq* pFacesSeq){
 //		if (pTh && (pTh->missedCount + pTh->nonMissedCount) > MAX_FRAMES_PER_THREAD) {
 //			//nothing yet
 //		}
-	}
+	} //end for
 
 	// Add Unmatched faces to new threads
 	while(pUnMatchedFaces->total>0){
@@ -453,11 +464,13 @@ void popHistory(){
 	cvClearSeq(pPopped.pFacesSeq);
 }
 
-FDHistoryEntry* addToHistory(IplImage * pImg,CvSeq* pSeqIn){
-	ftracker(__FUNCTION__,pImg,pSeqIn);
+FDHistoryEntry* addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id){
+	ftracker(__FUNCTION__,pImg,pSeqIn,frame_id);
 	IplImage * pVideoFrameCopy = createFrameCopy(pImg);	
 	CvSeq* pCopyInSeq = cvCloneSeq( pSeqIn , pHistoryStorage );
+	// YL - POSSIBLE BUG NOTE seems like we are taking pointer to stack storage here..
 	FDHistoryEntry toAdd = cvCreateHistoryEntry(pVideoFrameCopy,pCopyInSeq);
+	toAdd.frame_id = frame_id;
 	FDHistoryEntry* added = (FDHistoryEntry*)cvSeqPush( global_pHistory, &toAdd );
 	return added;
 }

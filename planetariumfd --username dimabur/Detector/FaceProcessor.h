@@ -1,12 +1,15 @@
+typedef int frame_id_t;
 
 typedef struct _HistoryEntry{
+	frame_id_t frame_id; 
 	IplImage* pFrame;
 	CvSeq* pFacesSeq;
 }FDHistoryEntry;
 
-typedef struct _Face{
-	CvRect rect;
-}FDFace;
+//typedef struct _Face{
+//	CvRect rect;
+//	frame_id_t frame_id;
+//}FDFace;
 
 typedef struct _FaceThread{
 	CvSeq* pFaces;
