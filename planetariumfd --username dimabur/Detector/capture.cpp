@@ -85,30 +85,6 @@ IplImage * nextVideoFrame()
 	if( !pVideoFrame )
 		fprintf(stderr, "failed to get a video frame (EOF?)\n");
 
-	////	#
-
-	//int frameH    = (int) cvGetCaptureProperty(pCapture, CV_CAP_PROP_FRAME_HEIGHT);
-	//int frameW    = (int) cvGetCaptureProperty(pCapture, CV_CAP_PROP_FRAME_WIDTH);
-	//int fps       = (int) cvGetCaptureProperty(pCapture, CV_CAP_PROP_FPS);
-	//int numFrames = (int) cvGetCaptureProperty(pCapture,  CV_CAP_PROP_FRAME_COUNT);
-
-	////The total frame count is relevant for video files only. It does not seem to be working properly.
-
-	////# Get frame information:
-
-	//double posMsec   =       cvGetCaptureProperty(pCapture, CV_CAP_PROP_POS_MSEC);
-	//int posFrames   = (int) cvGetCaptureProperty(pCapture, CV_CAP_PROP_POS_FRAMES);
-	//double posRatio  =       cvGetCaptureProperty(pCapture, CV_CAP_PROP_POS_AVI_RATIO);
-	//cout << "frameH = " << frameH <<endl;
-	//cout << "frameW = " << frameW <<endl;
-	//cout << "fps = " << fps <<endl;
-	//cout << "numFrames = " << numFrames <<endl;
-	//cout << "posMsec = " << posMsec <<endl;
-	//cout << "posFrames = " << posFrames <<endl;
-	//cout << "posRatio = " << posRatio <<endl;
-	////cout << "x = " << x <<endl;
-
-
 	return pVideoFrame;//pImage;//
 }
 

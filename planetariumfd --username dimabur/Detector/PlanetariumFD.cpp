@@ -4,8 +4,14 @@
 #include "stdafx.h"
 #include "config.h"
 #include <climits>
+
 // for debugging:
 #include <map> 
+//#include <boost/thread/mutex.hpp>
+//#include <boost/thread/locks.hpp>
+
+//typedef boost::shared_mutex ReadWriteMutex; 
+
 
 // TrackFaces.c - by Robin Hewitt, 2007
 // http://www.cognotics.com/opencv/downloads/camshift_wrapper
@@ -43,15 +49,9 @@ void exitProgram(int code);
 bool captureVideoFrame();
 
 //CvRect rectHistory[HISTORY_LENGTH];
-
 CvScalar colorArr[3]= {CV_RGB(255,0,0),
 					   CV_RGB(0,255,0),
 				       CV_RGB(0,0,255)};
-
-
-
-
-
 
 
 
@@ -272,61 +272,10 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	cvReleaseVideoWriter(&playbackVidWriter);
 	cvReleaseVideoWriter(&croppedVidWriter);
-	exitProgram(0);
+	//exitProgram(0);
 	//-----------------------------------------------------------
 	//-----------------------------------------------------------
 	//-----------------------------------------------------------
-
-
-
-
-
-	//for(int i=0;i<nFrames;i++){
-	//	cvGrabFrame(capture);          // capture a frame
-	//	img=cvRetrieveFrame(capture);  // retrieve the captured frame
-	//	cvWriteFrame(writer,img);      // add the frame to the file
-	//	//cvShowImage("mainWin", img); 
-	//	//key=cvWaitKey(20);           // wait 20 ms
-
-	//}
-	//
-
-
-
-
-
-
-
-
-	//-----------------------------------------------------------
-	cout << "==========================================================" << endl;
-	cout << "========== Last Loop      ================================" << endl;
-	cout << "==========================================================" << endl;
-	
-	//printf("Face detected");
-	// initialize tracking
-	startTracking(pVideoFrameCopy, pFaceRect);
-
-	// Track the detected face using CamShift
-	while( 1 )
-	{
-		CvBox2D faceBox;
-
-		// get the next video frame
-		if (!captureVideoFrame())
-			break; //end of video..
-
-		// track the face in the new video frame
-		faceBox = track(pVideoFrameCopy);
-
-		// outline face ellipse
-		cvEllipseBox(pVideoFrameCopy, faceBox,
-		             CV_RGB(255,0,0), 3, CV_AA, 0 );
-		cvShowImage( DISPLAY_WINDOW, pVideoFrameCopy );
-		if( (char)27==cvWaitKey(1) ) break;
-	}
-
-	exitProgram(0);
 }
 
 
