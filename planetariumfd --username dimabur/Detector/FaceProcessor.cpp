@@ -6,9 +6,9 @@
 //YL - size limitation for video..
 #define MAX_FRAMES_PER_THREAD (FD_HISTORY_LENGTH-1)
 
-CvSeq* global_pHistory   = NULL;
-CvSeq* global_pThreads   = NULL;
-CvSeq* global_pResultSeq = NULL;
+CvSeq* global_pHistory   = NULL; 
+CvSeq* global_pThreads   = NULL; //all threads in the system, some may be below thresholds
+CvSeq* global_pResultSeq = NULL; //faces above threshold in current frame
 
 
 typedef struct _FDFaceThreadStats{
@@ -346,7 +346,7 @@ FDFaceThread* addNewThread(){
 	return (FDFaceThread*)cvSeqPush(global_pThreads,&newThread);
 }
 
-
+// deletes thread from global_pThreads
 void deleteThread(int index){
 	FDFaceThread* pThread = (FDFaceThread*)cvGetSeqElem(global_pThreads,index);
 	cvClearSeq(pThread->pFaces);
