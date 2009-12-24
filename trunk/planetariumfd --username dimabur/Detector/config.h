@@ -14,7 +14,7 @@ using namespace std;
 // ============== Configurable Constants  ==============
 // =====================================================
 
-#define FD_HISTORY_LENGTH 150  
+#define FD_HISTORY_LENGTH 50  
 #define MAX_ALLOWED_MISSED_COUNT 10
 #define MAX_ALLOWED_CONSECUTIVE_MISSES 3
 
@@ -30,6 +30,10 @@ using namespace std;
 const int VIDEO_OUTPUT_FORMAT = CV_FOURCC_DEFAULT; //CV_FOURCC('F','L','V','1');
 static const char * VIDEO_PLAYBACK_FILENAME = "G:\\projects\\playback.avi";
 static const char * VIDEO_CROPPED_PLAYBACK_FILENAME = "G:\\projects\\cropped_playback.avi";
+
+//YL - size limitation for video..
+//#define MAX_FRAMES_PER_THREAD (FD_HISTORY_LENGTH-1)
+
 
 // =====================================================
 // ============== Auxilaries              ==============
