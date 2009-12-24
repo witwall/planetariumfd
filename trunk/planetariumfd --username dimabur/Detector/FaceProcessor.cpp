@@ -483,15 +483,3 @@ FDHistoryEntry cvCreateHistoryEntry(IplImage *pImg,CvSeq* pSeqIn){
 	result.pFrame = pImg;
 	return result;
 }
-
-//bool saveThread(int threadId){
-//	FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(pThreads,theadId);
-//	if (pTh->pFaces->total > MIN_FRAMES_TOSAVE)
-//
-//}
-//
-//bool deleteAndSaveThread(int threadId){
-//	if (!saveThread(threadId)){
-//		deleteThread(threadId);
-//	}
-//}

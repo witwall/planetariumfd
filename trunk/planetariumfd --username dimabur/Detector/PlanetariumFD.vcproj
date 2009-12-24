@@ -120,7 +120,7 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalIncludeDirectories="G:\projects\opencv_src\include\opencv"
+				AdditionalIncludeDirectories="G:\projects\opencv_src\include\opencv;G:\projects\boost\boost_1_40"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
@@ -141,6 +141,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="G:\projects\opencv_src\lib\release\cv200.lib G:\projects\opencv_src\lib\release\cxcore200.lib G:\projects\opencv_src\lib\release\highgui200.lib"
 				LinkIncremental="1"
+				AdditionalLibraryDirectories="G:\projects\boost\boost_1_40\lib"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
