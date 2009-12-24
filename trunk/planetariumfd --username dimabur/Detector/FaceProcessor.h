@@ -22,6 +22,11 @@ typedef struct _HistoryEntry{
 //	frame_id_t frame_id;
 //}FDFace;
 
+struct Face : public CvRect {
+
+	frame_id_t frame_id;
+};
+
 typedef struct _FaceThread{
 	CvSeq* pFaces;
 	CvSeq* pCandidates; // Candidates to be next face
