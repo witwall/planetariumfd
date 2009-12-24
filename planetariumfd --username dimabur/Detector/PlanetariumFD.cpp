@@ -88,7 +88,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		
 		//Do some filtration of pSeq into pSeqOut, based on history etc,
 		//update data structures (history ,face threads etc.)s
-		CvSeq* pSeqOut ;
+		CvSeq* pSeqOut = 0;
 		/*int count =*/ FdProcessFaces(pVideoFrameCopy,pSeq,&pSeqOut);
 
 		//Num of detected faces after filtration.
