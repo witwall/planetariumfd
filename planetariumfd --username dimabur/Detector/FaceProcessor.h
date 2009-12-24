@@ -6,6 +6,17 @@ typedef struct _HistoryEntry{
 	CvSeq* pFacesSeq;
 }FDHistoryEntry;
 
+//struct FDHistoryEntry { //CPP only..
+//	frame_id_t frame_id; 
+//	IplImage* pFrame;
+//	CvSeq* pFacesSeq;
+//	FDHistoryEntry(IplImage* _pFrame = NULL,CvSeq* _pFacesSeq = NULL,frame_id_t _frame_id= -1) :
+//		frame_id(_frame_id),  pFrame(_pFrame),  pFacesSeq(_pFacesSeq)
+//	{}
+//};
+
+
+
 //typedef struct _Face{
 //	CvRect rect;
 //	frame_id_t frame_id;

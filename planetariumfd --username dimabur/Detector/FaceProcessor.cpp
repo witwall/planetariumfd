@@ -72,8 +72,8 @@ CvPoint getRectCenter(CvRect* pRect){
 }
 
 float getDistance(CvPoint p1,CvPoint p2){
-	float dx = p2.x - p1.x;
-	float dy = p2.y - p1.y;
+	float dx = (float)(p2.x - p1.x);
+	float dy = (float)(p2.y - p1.y);
 	return cvSqrt((dx*dx) + (dy*dy));	
 }
 
@@ -93,8 +93,8 @@ void* cvSeqGetLast(CvSeq* pSeq){
 }
 
 float getSizeDiff(CvRect* pRefFace,CvRect* pThFace){
-	float refArea = pRefFace->height * pRefFace->width;
-	float thArea = pThFace->height * pThFace->width;
+	float refArea = (float)(pRefFace->height * pRefFace->width);
+	float thArea =  (float)(pThFace->height * pThFace->width);
 
 	return thArea/refArea;
 }
@@ -176,15 +176,15 @@ float getOverlappingArea(CvRect* pRect1,CvRect* pRect2){
 	//CvRect* pUpRight;
 	//CvRect* pDownLeft;
 
-	float left = pRect1->x > pRect2->x ? pRect1->x : pRect2->x;
-	float right1 = pRect1->x + pRect1->width ;
-	float right2 = pRect2->x + pRect2->width ;
-	float right = right1 < right2 ? right1 : right2;
+	float left = (float)(pRect1->x > pRect2->x ? pRect1->x : pRect2->x);
+	float right1 = (float)(pRect1->x + pRect1->width );
+	float right2 = (float)(pRect2->x + pRect2->width );
+	float right = (float)(right1 < right2 ? right1 : right2);
 
-	float bottom = pRect1->y > pRect2->y ? pRect1->y : pRect2->y;
-	float top1 = pRect1->y + pRect1->height ;
-	float top2 = pRect2->y + pRect2->height ;
-	float top =  top1 < top2 ? top1 : top2;
+	float bottom = (float)(pRect1->y > pRect2->y ? pRect1->y : pRect2->y);
+	float top1 = (float)(pRect1->y + pRect1->height );
+	float top2 = (float)(pRect2->y + pRect2->height );
+	float top =  (float)(top1 < top2 ? top1 : top2);
 
 	printf("\ntop : %f ,bot : %f , left : %f , right : %f",top,bottom,left,right);
 	float area = 0;
