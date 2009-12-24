@@ -303,9 +303,12 @@ int FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn,CvSeq** pSeqOut){
 		if ((pTh->nonMissedCount > MIN_FACE_OCCURENCES_THRESH))
 			cvSeqPush(global_pResultSeq,cvSeqGetLast(pTh->pFaces));
 
-		printf("| Th%d  %d-%d  (%d) ",i,pTh->nonMissedCount,pTh->missedCount,pTh->pFaces->total);
+		printf("| Th%d  %d-%d-%d  (%d) ",i,pTh->nonMissedCount,pTh->missedCount,pTh->consecutiveMissedCount,
+			pTh->pFaces->total);
 	}
 	printf("\n");
+
+	printf("# faces in result seq: %d\n",global_pResultSeq->total);
 	
 	//5. output
 	*pSeqOut = global_pResultSeq;
@@ -430,9 +433,10 @@ void processThreads(CvSeq* pFacesSeq){
 			//YL - missing rectangle in the thread denoted by NULLs
 			//   This seems to mess up following over threads.
 			//addNewFaceToThread(pTh,NULL);
-			pTh->consecutiveMissedCount++;
-			if (++pTh->missedCount > MAX_ALLOWED_MISSED_COUNT){
-				//if (saveAndDeleteThread(pStats->threadId))
+			++pTh->consecutiveMissedCount;
+			++pTh->missedCount;
+			if ( pTh->missedCount> MAX_ALLOWED_MISSED_COUNT ||
+				 pTh->consecutiveMissedCount > MAX_ALLOWED_CONSECUTIVE_MISSES){
 				deleteThread(pStats->threadId);
 //				pTh = NULL;
 			}
