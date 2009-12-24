@@ -8,7 +8,7 @@
 
 CvSeq* global_pHistory   = NULL; 
 CvSeq* global_pThreads   = NULL; //all threads in the system, some may be below thresholds
-CvSeq* global_pResultSeq = NULL; //faces above threshold in current frame
+CvSeq* global_pFacesCurrentFrame = NULL; //faces above threshold in current frame
 
 
 typedef struct _FDFaceThreadStats{
@@ -58,7 +58,7 @@ int FdInit(){
 						  sizeof(FDFaceThread), /* element size */
 						  pHistoryStorage /* the container storage */ );
 
-	global_pResultSeq = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
+	global_pFacesCurrentFrame = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
 
 	return 1;
 }
@@ -293,25 +293,25 @@ int FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn,CvSeq** pSeqOut){
 		popAndCleanEmptyThreads();
 	}
 
-	// 4. We clear global_pResultSeq and re-add all faces above thresh.
-	cvClearSeq(global_pResultSeq);
+	// 4. We clear global_pFacesCurrentFrame and re-add all faces above thresh.
+	cvClearSeq(global_pFacesCurrentFrame);
 
 
 	for(int i =0;i<global_pThreads->total;i++){
 		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,i);
 
 		if ((pTh->nonMissedCount > MIN_FACE_OCCURENCES_THRESH))
-			cvSeqPush(global_pResultSeq,cvSeqGetLast(pTh->pFaces));
+			cvSeqPush(global_pFacesCurrentFrame,cvSeqGetLast(pTh->pFaces));
 
 		printf("| Th%d  %d-%d-%d  (%d) ",i,pTh->nonMissedCount,pTh->missedCount,pTh->consecutiveMissedCount,
 			pTh->pFaces->total);
 	}
 	printf("\n");
 
-	printf("# faces in result seq: %d\n",global_pResultSeq->total);
+	printf("# faces in result seq: %d\n",global_pFacesCurrentFrame->total);
 	
 	//5. output
-	*pSeqOut = global_pResultSeq;
+	*pSeqOut = global_pFacesCurrentFrame;
 	return 0;
 }
 
