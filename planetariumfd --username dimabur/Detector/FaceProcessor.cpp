@@ -9,7 +9,7 @@
 CvSeq* global_pHistory   = NULL;
 CvSeq* global_pThreads   = NULL;
 CvSeq* global_pResultSeq = NULL;
-int global_frame_counter = 0;
+
 
 typedef struct _FDFaceThreadStats{
 	CvRect*		pFaceRect;
@@ -272,12 +272,13 @@ int matchThreadToFaceByProximity(CvSeq* pThIndexes,CvRect* pFaceRect){
 // updates history
 // matches faces to threads
 int FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn,CvSeq** pSeqOut){
-
-	printf("------------------- %d -----------------------------------------------\n",global_frame_counter++);
+	static int processed_frame_counter = 0;
+	printf("------------ frame %d ----------------------\n",processed_frame_counter++);
+	
 	FDHistoryEntry* cur = addToHistory(pImg,pSeqIn);
 	CvSeq* pFacesSeq = cur->pFacesSeq;
 
-	printf("Faces : %d \n",pFacesSeq->total);
+	printf("# Input faces : %d \n",pFacesSeq->total);
 
 	processThreads(cur->pFacesSeq);
 
