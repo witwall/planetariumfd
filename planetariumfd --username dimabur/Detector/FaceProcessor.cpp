@@ -3,19 +3,13 @@
 #include "FaceProcessor.h"
 #include "config.h"
 
-
-
 //YL - size limitation for video..
 #define MAX_FRAMES_PER_THREAD (FD_HISTORY_LENGTH-1)
 
-
-//A face must appear in at least this number of frames
-#define MIN_FACE_OCCURENCES_THRESH 2
-//#define MIN_FACE_OCCURENCES 2 5
-
-CvSeq* pHistory = NULL;
-CvSeq* pThreads = NULL;
-CvSeq* pResultSeq = NULL;
+CvSeq* global_pHistory   = NULL;
+CvSeq* global_pThreads   = NULL;
+CvSeq* global_pResultSeq = NULL;
+int global_frame_counter = 0;
 
 typedef struct _FDFaceThreadStats{
 	CvRect*		pFaceRect;
@@ -51,17 +45,17 @@ int FdInit(){
 		return 0;
 	}
 
-	pHistory = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, 
+	global_pHistory = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, 
 						  sizeof(CvSeq), /* header size - no extra fields */
 						  sizeof(FDHistoryEntry), /* element size */
 						  pHistoryStorage /* the container storage */ );
 
-	pThreads = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, /* sequence of integer elements */
+	global_pThreads = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, /* sequence of integer elements */
 						  sizeof(CvSeq), /* header size - no extra fields */
 						  sizeof(FDFaceThread), /* element size */
 						  pHistoryStorage /* the container storage */ );
 
-	pResultSeq = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
+	global_pResultSeq = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
 
 	return 1;
 }
@@ -83,7 +77,7 @@ float getDistance(CvPoint p1,CvPoint p2){
 
 FDFaceThread* getThreadByInd(CvSeq* pThStatSeq,int ind){
 	FDFaceThreadStats* pThStat = (FDFaceThreadStats*)cvGetSeqElem(pThStatSeq,ind);
-	FDFaceThread* pMatchedTh = (FDFaceThread*)cvGetSeqElem(pThreads,pThStat->threadId);				
+	FDFaceThread* pMatchedTh   = (FDFaceThread*)cvGetSeqElem(global_pThreads,pThStat->threadId);				
 	return pMatchedTh;
 }
 
@@ -140,8 +134,8 @@ static int cmpThreadsProximity( const void* _a, const void* _b, void* userdata )
 
 	CvPoint center = getRectCenter((CvRect*)userdata);
 
-	FDFaceThread* thA = (FDFaceThread*)cvGetSeqElem(pThreads,statA->threadId);
-	FDFaceThread* thB = (FDFaceThread*)cvGetSeqElem(pThreads,statB->threadId);
+	FDFaceThread* thA = (FDFaceThread*)cvGetSeqElem(global_pThreads,statA->threadId);
+	FDFaceThread* thB = (FDFaceThread*)cvGetSeqElem(global_pThreads,statB->threadId);
 
 	CvRect* pThAFace = (CvRect*)cvSeqGetLast(thA->pFaces);
 	CvRect* pThBFace = (CvRect*)cvSeqGetLast(thB->pFaces);
@@ -207,7 +201,7 @@ int matchThreadToFaceByProxymityAndSize(CvSeq* pThStatSeq,CvRect* pFaceRect){
 	FDFaceThreadStats* pClosestStat = (FDFaceThreadStats*)cvSeqGetFirst(pThStatSeq);
 	
 	if (pThStatSeq->total == 1){
-		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(pThreads,pClosestStat->threadId);
+		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,pClosestStat->threadId);
 		CvRect* pThFace = (CvRect*)cvSeqGetLast(pTh->pFaces);
 		pClosestStat->distance = getDistance(getRectCenter(pFaceRect),getRectCenter(pThFace));		
 	}
@@ -273,9 +267,13 @@ int matchThreadToFaceByProximity(CvSeq* pThIndexes,CvRect* pFaceRect){
 	return minIndexIndex;
 }
 
+
+
+// updates history
+// matches faces to threads
 int FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn,CvSeq** pSeqOut){
 
-	printf("------------------------------------------------------------------\n");
+	printf("------------------- %d -----------------------------------------------\n",global_frame_counter++);
 	FDHistoryEntry* cur = addToHistory(pImg,pSeqIn);
 	CvSeq* pFacesSeq = cur->pFacesSeq;
 
@@ -283,38 +281,41 @@ int FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn,CvSeq** pSeqOut){
 
 	processThreads(cur->pFacesSeq);
 
-	if (pHistory->total > FD_HISTORY_LENGTH){
+	if (global_pHistory->total > FD_HISTORY_LENGTH){
 		popHistory();
 		popAndCleanEmptyThreads();
 	}
 
-	cvClearSeq(pResultSeq);
+	// We clear global_pResultSeq and re-add all faces above thresh.
 
-	for(int i =0;i<pThreads->total;i++){
-		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(pThreads,i);
+	cvClearSeq(global_pResultSeq);
+
+
+	for(int i =0;i<global_pThreads->total;i++){
+		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,i);
 
 		if ((pTh->nonMissedCount > MIN_FACE_OCCURENCES_THRESH))
-			cvSeqPush(pResultSeq,cvSeqGetLast(pTh->pFaces));
+			cvSeqPush(global_pResultSeq,cvSeqGetLast(pTh->pFaces));
 
 		printf("|   Th%d  %d-%d   ",i,pTh->nonMissedCount,pTh->missedCount);
 	}
 	printf("\n");
 
-	*pSeqOut = pResultSeq;
+	*pSeqOut = global_pResultSeq;
 
 	return 0;
 }
 
 void popAndCleanEmptyThreads(){
-	int count = pThreads->total;
+	int count = global_pThreads->total;
 	int index = 0;
 	while(count > 0){
-		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(pThreads,index);
+		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,index);
 		if (pTh->pFaces->total > FD_HISTORY_LENGTH)
 			cvSeqPopFront(pTh->pFaces);
 
 		if(pTh->pFaces->total == 0){
-			cvSeqRemove(pThreads,index);
+			cvSeqRemove(global_pThreads,index);
 		}else{
 			
 			index++;
@@ -327,16 +328,20 @@ FDFaceThread* addNewThread(){
 	FDFaceThread newThread;
 	newThread.pFaces = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
 	newThread.pCandidates = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
+
+	newThread.totalCount = 0;	
 	newThread.missedCount = 0;
 	newThread.nonMissedCount = 0;
-	return (FDFaceThread*)cvSeqPush(pThreads,&newThread);
+	newThread.consecutiveMissedCount = 0;
+
+	return (FDFaceThread*)cvSeqPush(global_pThreads,&newThread);
 }
 
 
 void deleteThread(int index){
-	FDFaceThread* pThread = (FDFaceThread*)cvGetSeqElem(pThreads,index);
+	FDFaceThread* pThread = (FDFaceThread*)cvGetSeqElem(global_pThreads,index);
 	cvClearSeq(pThread->pFaces);
-	cvSeqRemove(pThreads,index);
+	cvSeqRemove(global_pThreads,index);
 }
 
 void addNewFaceToCandidates(FDFaceThread* pThread,CvRect* pFaceRect){
@@ -349,7 +354,7 @@ void addNewFaceToThread(FDFaceThread* pThread,CvRect* pFaceRect){
 
 CvSeq* createThreadStatsSeq(){
 	CvSeq* pThStatsSeq = cvCreateSeq(CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(FDFaceThreadStats),pHistoryStorage);
-	for(int i = 0;i<pThreads->total;i++){
+	for(int i = 0;i<global_pThreads->total;i++){
 		FDFaceThreadStats stats = cvFDFaceThreadStats(NULL,i);
 		cvSeqPush( pThStatsSeq, &stats );
 	}
@@ -378,7 +383,7 @@ void processThreads(CvSeq* pFacesSeq){
 			// Get the thread stat struct
 			FDFaceThreadStats* pMathcedThStats = (FDFaceThreadStats*)cvGetSeqElem(pThStatsSeq,thStatIndex);
 			// Get the thread itself
-			FDFaceThread* pMatchedTh = (FDFaceThread*)cvGetSeqElem(pThreads,pMathcedThStats->threadId);	
+			FDFaceThread* pMatchedTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,pMathcedThStats->threadId);	
 			// Add the face to the matching thread
 			addNewFaceToCandidates(pMatchedTh,pFaceRect);
 		}else if (pFaceRect != NULL){
@@ -391,8 +396,9 @@ void processThreads(CvSeq* pFacesSeq){
 	// Those who have candidates have continuation
 	for(int i = 0; i < pThStatsSeq->total; i++){
 		FDFaceThreadStats* pStats = (FDFaceThreadStats*)cvGetSeqElem(pThStatsSeq,i);
-		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(pThreads,pStats->threadId);
+		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,pStats->threadId);
 		
+		pTh->totalCount++;
 		// at least one candidate for this thread - choose best
 		if (pTh->pCandidates->total > 0){
 			//sort by proximity and size and choose best (i.e. first one)
@@ -405,16 +411,15 @@ void processThreads(CvSeq* pFacesSeq){
 
 			/*if (pTh->nonMissedCount < FD_HISTORY_LENGTH)*/ 
 			pTh->nonMissedCount++;
-			
+			pTh->consecutiveMissedCount = 0;
 			if (pTh->missedCount > 0) pTh->missedCount --;
 			
 			//saveThread(pStats->threadId);
 		}
 		// no candidates for thread in this frame:
 		else{
-			if (pTh->missedCount < MAX_ALLOWED_MISSED_COUNT){
-				pTh->missedCount ++;
-			}else{
+			pTh->consecutiveMissedCount++;
+			if (++pTh->missedCount > MAX_ALLOWED_MISSED_COUNT){
 				//if (saveAndDeleteThread(pStats->threadId))
 				deleteThread(pStats->threadId);
 //				pTh = NULL;
@@ -440,25 +445,28 @@ void processThreads(CvSeq* pFacesSeq){
 }
 
 void popHistory(){
+	ftracker(__FUNCTION__);
 	FDHistoryEntry pPopped;
-	cvSeqPop(pHistory, &pPopped);
+	cvSeqPop(global_pHistory, &pPopped);
 	cvReleaseImage(&(pPopped.pFrame));
 	cvClearSeq(pPopped.pFacesSeq);
 }
 
 FDHistoryEntry* addToHistory(IplImage * pImg,CvSeq* pSeqIn){
+	ftracker(__FUNCTION__,pImg,pSeqIn);
 	IplImage * pVideoFrameCopy = createFrameCopy(pImg);	
 	CvSeq* pCopyInSeq = cvCloneSeq( pSeqIn , pHistoryStorage );
 	FDHistoryEntry toAdd = cvCreateHistoryEntry(pVideoFrameCopy,pCopyInSeq);
-	FDHistoryEntry* added = (FDHistoryEntry*)cvSeqPush( pHistory, &toAdd );
+	FDHistoryEntry* added = (FDHistoryEntry*)cvSeqPush( global_pHistory, &toAdd );
 	return added;
 }
 
 CvSeq* FdGetHistorySeq(){
-	return pHistory;
+	return global_pHistory;
 }
 
 IplImage * createFrameCopy(IplImage * pImg){
+	ftracker(__FUNCTION__,pImg,'X');
 	IplImage * pVideoFrameCopy;
 
 	pVideoFrameCopy = cvCreateImage( cvGetSize(pImg), 8, 3 );
@@ -469,6 +477,7 @@ IplImage * createFrameCopy(IplImage * pImg){
 }
 
 FDHistoryEntry cvCreateHistoryEntry(IplImage *pImg,CvSeq* pSeqIn){
+	ftracker(__FUNCTION__,pImg,pSeqIn);
 	FDHistoryEntry result;
 	result.pFacesSeq = pSeqIn;
 	result.pFrame = pImg;
