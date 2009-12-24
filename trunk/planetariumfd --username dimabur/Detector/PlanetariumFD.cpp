@@ -64,7 +64,6 @@ CvScalar colorArr[3]= {CV_RGB(255,0,0),
 //
 int _tmain(int argc, _TCHAR* argv[])
 {
-	CvRect * pFaceRect = 0;
 	if( !initAll() ) 
 		exitProgram(-1);
 
@@ -84,49 +83,34 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 		++frame_count;
 
-
 		CvSeq* pSeq = 0;
-
-
 		/*int count = */detectFaces(pVideoFrameCopy,&pSeq);
 		
-		//Do some filtration of pSeq into pSeqOut, based on history etc.
+		//Do some filtration of pSeq into pSeqOut, based on history etc,
+		//update data structures (history ,face threads etc.)s
 		CvSeq* pSeqOut ;
 		/*int count =*/ FdProcessFaces(pVideoFrameCopy,pSeq,&pSeqOut);
 
 		//Num of detected faces after filtration.
 		int num_faces = pSeqOut->total;
-		//pFaceRect = detectFaces(pVideoFrameCopy);
 		
 		//== draw rectrangle for each detected face ==
 		if (num_faces > 0){	//faces detected (??)
 			
 			for(int i = 0 ;i < num_faces;i++){
 				
-				pFaceRect = (CvRect*)cvGetSeqElem(pSeqOut, i);
+				CvRect * pFaceRect = (CvRect*)cvGetSeqElem(pSeqOut, i);
 
 				CvPoint pt1 = cvPoint(pFaceRect->x,pFaceRect->y);
 				CvPoint pt2 = cvPoint(pFaceRect->x + pFaceRect->width,pFaceRect->y + pFaceRect->height);
 
-				//cout << "\twidth :" << pFaceRect->width << endl;
-				//cout << "\theight:" << pFaceRect->height << endl;
-				
 				cvRectangle( pVideoFrameCopy, pt1, pt2, colorArr[i%3],2,8,0);
-
-				/*cvEllipseBox(pVideoFrameCopy, faceBox,
-							 CV_RGB(0,255,0), 3, CV_AA, 0 );*/
-
-				//cvShowImage( DISPLAY_WINDOW, pVideoFrameCopy );
-				//if( (char)27==cvWaitKey(1) ) break;//exitProgram(0);
 			}
 		}else{ //no faces detected
 			Sleep(100);
 		}
 		cvShowImage( DISPLAY_WINDOW, pVideoFrameCopy );
 		cvReleaseImage(&pVideoFrameCopy);
-		// exit loop when a face is detected
-		//if(pFaceRect) break;
-		//printf("\n");
 	
 	} //end input while
 
@@ -135,35 +119,26 @@ int _tmain(int argc, _TCHAR* argv[])
 	cout << "==========================================================" << endl << endl;
 	
 
+
 	cout << "==========================================================" << endl;
-	cout << "========== Rectangles     ================================" << endl;
+	cout << "==== Playback history + rectangles +                 =====" << endl;
+	cout << "==== create output video(s)						  =====" << endl;
 	cout << "==========================================================" << endl << endl;
 	CvSeq* pHistory = FdGetHistorySeq();
 	
 	//== VIDEO WRITER START =====================
-	CvVideoWriter * playbackVidWriter = 0;
-	CvVideoWriter *  croppedVidWriter = 0;
-
 	int isColor = 1;
 	int fps     = 30;//25;  // or 30
 	int frameW  = 640; // 744 for firewire cameras
 	int frameH  = 480; // 480 for firewire cameras
-	cout << "initing 2X writers " << endl;
-	playbackVidWriter=cvCreateVideoWriter(VIDEO_PLAYBACK_FILENAME,
+	CvVideoWriter * playbackVidWriter=cvCreateVideoWriter(VIDEO_PLAYBACK_FILENAME,
 								VIDEO_OUTPUT_FORMAT,
-								//CV_FOURCC_DEFAULT,
-								//CV_FOURCC('F','L','V','1'),
-								/*CV_FOURCC('M','P','4','2'),*/
-								/*CV_FOURCC('D','I','V','X'),*/
-							   	/*CV_FOURCC('P','I','M','1'),*/
 							   fps,cvSize(frameW,frameH),isColor);
-
-	if (!playbackVidWriter /*|| !croppedVidWriter*/) {
+	CvVideoWriter *  croppedVidWriter = 0;
+	if (!playbackVidWriter) {
 		cerr << "can't create vid writer" << endl;
 		exitProgram(-1);
 	}
-	IplImage* img = 0; 
-	int nFrames = 50;
 	bool wasWrittenToVideo = false;
 	//== VIDEO WRITER END =====================
 
@@ -172,8 +147,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	// i.e. just what's in the history
 	int playback_counter = 0;
 
-
-	cout << "finding consensus rect " << endl;
+	cout << "start finding consensus rect " << endl;
 	//find min max
 	bool found =false;
 	int min_x = INT_MAX,//pFaceRect->x,
@@ -184,7 +158,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		FDHistoryEntry* pHEntry = (FDHistoryEntry*)cvGetSeqElem(pHistory, j);
 		CvSeq* pFacesSeq = pHEntry->pFacesSeq;
 		assert(pFacesSeq);
-		pFaceRect = (CvRect*)cvGetSeqElem(pFacesSeq, 0); //works only on first rec series
+		CvRect * pFaceRect = (CvRect*)cvGetSeqElem(pFacesSeq, 0); //works only on first rec series
 		if (pFaceRect){
 			found = true;
 			if (pFaceRect->x < min_x) min_x = pFaceRect->x;
@@ -202,10 +176,10 @@ int _tmain(int argc, _TCHAR* argv[])
 	consensus_rect.height = max_y - min_y;
 
 	pHistory = FdGetHistorySeq(); //back to how it was before the min max loop
-	cout << "playback loop " << endl;
 
 
-	std::map<IplImage*,int> pointers;
+	cout << "start playback loop " << endl;
+	std::map<IplImage*,int> pointers; //used to detect loop
 	while( 1 ){
 		if (index > pHistory->total) index = 0; //take care of looping the video
 		FDHistoryEntry* pHEntry = (FDHistoryEntry*)cvGetSeqElem(pHistory, index++);
@@ -221,7 +195,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		CvSeq* pFacesSeq = pHEntry->pFacesSeq;
 
 		for(int i = 0 ;i < pFacesSeq->total ;i++){				
-			pFaceRect = (CvRect*)cvGetSeqElem(pFacesSeq, i);
+			CvRect * pFaceRect = (CvRect*)cvGetSeqElem(pFacesSeq, i);
 			assert(pFaceRect != NULL);
 			CvPoint pt1 = cvPoint(pFaceRect->x,pFaceRect->y);
 			CvPoint pt2 = cvPoint(pFaceRect->x + pFaceRect->width,pFaceRect->y + pFaceRect->height);
@@ -246,8 +220,6 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (!croppedVidWriter)
 				croppedVidWriter=cvCreateVideoWriter(VIDEO_CROPPED_PLAYBACK_FILENAME,
 									VIDEO_OUTPUT_FORMAT,
-									//CV_FOURCC('F','L','V','1'),
-									//CV_FOURCC_DEFAULT,
 	 						   fps,cvSize(max_x-min_x,max_y-min_y),isColor);
 			assert(croppedVidWriter);
 
@@ -272,7 +244,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	cvReleaseVideoWriter(&playbackVidWriter);
 	cvReleaseVideoWriter(&croppedVidWriter);
-	//exitProgram(0);
+	exitProgram(0);
 	//-----------------------------------------------------------
 	//-----------------------------------------------------------
 	//-----------------------------------------------------------
