@@ -42,7 +42,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="G:\projects\OpenCV2.0\include\opencv"
+				AdditionalIncludeDirectories="G:\projects\opencv_src\include\opencv;G:\projects\boost\boost_1_40"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -65,7 +65,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="G:\projects\opencv_src\lib\debug\cv200d.lib G:\projects\opencv_src\lib\debug\cxcore200d.lib G:\projects\opencv_src\lib\debug\highgui200d.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="G:\projects\OpenCV2.0\bin;G:\projects\OpenCV2.0\lib;D:\Projects\OpenCV_CMAKE_BIN\lib\debug"
+				AdditionalLibraryDirectories="G:\projects\boost\boost_1_40\lib;G:\projects\OpenCV2.0\bin;G:\projects\OpenCV2.0\lib;D:\Projects\OpenCV_CMAKE_BIN\lib\debug"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -141,7 +141,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="G:\projects\opencv_src\lib\release\cv200.lib G:\projects\opencv_src\lib\release\cxcore200.lib G:\projects\opencv_src\lib\release\highgui200.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="G:\projects\boost\boost_1_40\lib"
+				AdditionalLibraryDirectories="G:\projects\boost\boost_1_40\lib;G:\projects\OpenCV2.0\bin;G:\projects\OpenCV2.0\lib;D:\Projects\OpenCV_CMAKE_BIN\lib\debug"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -246,15 +246,15 @@
 			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
+			<File
+				RelativePath=".\misc.txt"
+				>
+			</File>
+			<File
+				RelativePath=".\ReadMe.txt"
+				>
+			</File>
 		</Filter>
-		<File
-			RelativePath=".\misc.txt"
-			>
-		</File>
-		<File
-			RelativePath=".\ReadMe.txt"
-			>
-		</File>
 	</Files>
 	<Globals>
 	</Globals>

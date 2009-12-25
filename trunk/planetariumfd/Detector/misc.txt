@@ -1,3 +1,25 @@
+When a video is becoming too long, we can serialize it to disk once, but keep it alive with
+a wasSerialized flag on, so that it prevents this face to be video'd again.
+so 
+
+
+============
+How to get the frames in deleteThread?
+	Each face will have a pointer to a history entry
+	The history entry should have storage which is not copied when removed from history
+		as happens with cvSeq.
+		
+		build map<frame_id,FDHistoryEntry
+
+Handling missing frames
+
+
+
+
+
+
+
+
 Todo:
 
 1. Make configurable at runtime (so we can change params in the event, based on camera, lighting, mem available etc.)

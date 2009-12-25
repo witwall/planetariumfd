@@ -88,23 +88,19 @@ int _tmain(int argc, _TCHAR* argv[])
 		
 		//Do some filtration of pSeq into pSeqOut, based on history etc,
 		//update data structures (history ,face threads etc.)s
-		CvSeq* pSeqOut = 0;
-		/*int count =*/ FdProcessFaces(pVideoFrameCopy,pSeq,&pSeqOut);
+		list<Face> & faces_in_this_frame = FdProcessFaces(pVideoFrameCopy,pSeq);
 
-		//Num of detected faces after filtration.
-		int num_faces = pSeqOut->total;
-		
 		//== draw rectrangle for each detected face ==
-		if (num_faces > 0){	//faces detected (??)
-			
-			for(int i = 0 ;i < num_faces;i++){
-				
-				CvRect * pFaceRect = (CvRect*)cvGetSeqElem(pSeqOut, i);
-
-				CvPoint pt1 = cvPoint(pFaceRect->x,pFaceRect->y);
-				CvPoint pt2 = cvPoint(pFaceRect->x + pFaceRect->width,pFaceRect->y + pFaceRect->height);
-
-				cvRectangle( pVideoFrameCopy, pt1, pt2, colorArr[i%3],2,8,0);
+		if (!faces_in_this_frame.empty()){	//faces detected (??)
+			int i = 0;
+			for(list<Face>::iterator face_itr = faces_in_this_frame.begin(); face_itr != faces_in_this_frame.end(); ++face_itr)
+			{
+				CvPoint pt1 = cvPoint(face_itr->x,face_itr->y);
+				CvPoint pt2 = cvPoint(face_itr->x + face_itr->width,face_itr->y + face_itr->height);
+				if (face_itr->frame_id == frame_count) //detected for this frame
+					cvRectangle( pVideoFrameCopy, pt1, pt2, colorArr[i++%3],3,8,0);
+				else //from a previous frame
+					cvRectangle( pVideoFrameCopy, pt1, pt2, colorArr[i++%3],1,4,0);
 			}
 		}else{ //no faces detected
 			Sleep(100);
@@ -124,7 +120,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	cout << "==== Playback history + rectangles +                 =====" << endl;
 	cout << "==== create output video(s)						  =====" << endl;
 	cout << "==========================================================" << endl << endl;
-	CvSeq* pHistory = FdGetHistorySeq();
+	list<FDHistoryEntry> & pHistory = FdGetHistorySeq();
 	
 	//== VIDEO WRITER START =====================
 	int isColor = 1;
@@ -154,10 +150,11 @@ int _tmain(int argc, _TCHAR* argv[])
 		max_x = 0,//pFaceRect->x+pFaceRect->width,
 		min_y = INT_MAX,//pFaceRect->y,
 		max_y = 0;//pFaceRect->y+pFaceRect->height;
-	for (int j = 0; j < pHistory->total ; ++j)	{
-		FDHistoryEntry* pHEntry = (FDHistoryEntry*)cvGetSeqElem(pHistory, j);
-		CvSeq* pFacesSeq = pHEntry->pFacesSeq;
+	for (list<FDHistoryEntry>::iterator itr = pHistory.begin() ; itr != pHistory.end(); ++itr)
+	{
+		CvSeq* pFacesSeq = itr->pFacesSeq;
 		assert(pFacesSeq);
+		//TODO Might want to convert to Face here
 		CvRect * pFaceRect = (CvRect*)cvGetSeqElem(pFacesSeq, 0); //works only on first rec series
 		if (pFaceRect){
 			found = true;
@@ -175,24 +172,16 @@ int _tmain(int argc, _TCHAR* argv[])
 	consensus_rect.width  = max_x - min_x;
 	consensus_rect.height = max_y - min_y;
 
-	pHistory = FdGetHistorySeq(); //back to how it was before the min max loop
-
 
 	cout << "start playback loop " << endl;
-	std::map<IplImage*,int> pointers; //used to detect loop
-	while( 1 ){
-		if (index > pHistory->total) index = 0; //take care of looping the video
-		FDHistoryEntry* pHEntry = (FDHistoryEntry*)cvGetSeqElem(pHistory, index++);
+	int k = 0;
+	for (list<FDHistoryEntry>::iterator itr = pHistory.begin() ; itr != pHistory.end(); ++itr)
+	{
+		cout << ++k << endl;
 
-		pointers[pHEntry->pFrame]++;
-		if (pointers[pHEntry->pFrame]>1) break; //no looping for right now
-
-		cout << pointers.size() << endl;
-
-		pVideoFrameCopy = cvCreateImage( cvGetSize(pHEntry->pFrame ), 8, 3 );
-		cvCopy( pHEntry->pFrame , pVideoFrameCopy, 0 );
-		
-		CvSeq* pFacesSeq = pHEntry->pFacesSeq;
+		pVideoFrameCopy = cvCreateImage( cvGetSize(itr->pFrame ), 8, 3 ); //TODO query image for its properties
+		cvCopy( itr->pFrame , pVideoFrameCopy, 0 );
+		CvSeq* pFacesSeq = itr->pFacesSeq;
 
 		for(int i = 0 ;i < pFacesSeq->total ;i++){				
 			CvRect * pFaceRect = (CvRect*)cvGetSeqElem(pFacesSeq, i);

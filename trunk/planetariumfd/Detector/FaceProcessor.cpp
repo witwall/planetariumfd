@@ -3,85 +3,89 @@
 #include "FaceProcessor.h"
 #include "config.h"
 
-//YL - size limitation for video..
-#define MAX_FRAMES_PER_THREAD (FD_HISTORY_LENGTH-1)
+#include <list>
+using namespace std;
 
-CvSeq* global_pHistory   = NULL; 
-CvSeq* global_pThreads   = NULL; //all threads in the system, some may be below thresholds
-CvSeq* global_pFacesCurrentFrame = NULL; //faces above threshold in current frame
+list<FDHistoryEntry> gHistory;
+list<FDFaceThread>   gThreads;
+list<Face>           gFacesInCurrentFrame;
 
+//CvSeq* gFacesCurrentFrameList = NULL; //faces above threshold in current frame
 
-typedef struct _FDFaceThreadStats{
-	CvRect*		pFaceRect;
+ struct FDFaceThreadStats {
+	Face*		pFaceRect;
 	int			threadId;
 	float		distance;
-}FDFaceThreadStats;
-
-FDFaceThreadStats cvFDFaceThreadStats(CvRect*  pFaceRect,int thId){
-	FDFaceThreadStats stats;
-	stats.pFaceRect = pFaceRect;
-	stats.threadId = thId;
-	stats.distance = -1;
 	
-	return stats; 
-}
+	FDFaceThreadStats(int _thId = -1, Face*  _pFaceRect = NULL) : pFaceRect(_pFaceRect), threadId(_thId) ,distance(-1)
+	{}
+
+};
+
 
 CvMemStorage * pHistoryStorage = 0;  
 
 
-//const NullRect FACE_PROCESSOR_NULL_RECT;
+const NullRect FD_NULL_RECT;
 
 // function definition
 IplImage * createFrameCopy(IplImage * pImg);
 FDHistoryEntry cvCreateHistoryEntry(IplImage *pImg,CvSeq* pSeqIn);
 FDHistoryEntry* addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id);
-void processThreads(CvSeq* pFacesSeq);
+void processThreads(CvSeq* pFacesSeq,frame_id_t frame_id= -1);
 void popHistory();
 void popAndCleanEmptyThreads();
-FDFaceThreadStats cvFDFaceThreadStats(CvRect*  pFaceRect,int thId);
 
 int FdInit(){
-
 	if( !(pHistoryStorage = cvCreateMemStorage(0)) )
 	{
 		fprintf(stderr, "Can\'t allocate memory for face history\n");
 		return 0;
 	}
 
-	global_pHistory = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, 
-						  sizeof(CvSeq), /* header size - no extra fields */
-						  sizeof(FDHistoryEntry), /* element size */
-						  pHistoryStorage /* the container storage */ );
-
-	global_pThreads = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, /* sequence of integer elements */
-						  sizeof(CvSeq), /* header size - no extra fields */
-						  sizeof(FDFaceThread), /* element size */
-						  pHistoryStorage /* the container storage */ );
-
-	global_pFacesCurrentFrame = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
-
 	return 1;
 }
 
 void FdClose(){
 	if(pHistoryStorage) cvReleaseMemStorage(&pHistoryStorage);
+	//TODO add code that frees all images in the new history list
 }
 
-CvPoint getRectCenter(CvRect* pRect){
+inline CvPoint getRectCenter(CvRect* pRect){
 	return cvPoint(pRect->x + (pRect->width/2),pRect->y + (pRect->height/2));	
 }
 
-float getDistance(CvPoint p1,CvPoint p2){
+inline CvPoint getRectCenter(const CvRect& pRect)
+{
+	return cvPoint(pRect.x + (pRect.width/2),pRect.y + (pRect.height/2));	
+}
+
+
+inline 
+float getDistance(const CvPoint& p1,const CvPoint& p2){
 	float dx = (float)(p2.x - p1.x);
 	float dy = (float)(p2.y - p1.y);
 	return cvSqrt((dx*dx) + (dy*dy));	
 }
 
 
-FDFaceThread* getThreadByInd(CvSeq* pThStatSeq,int ind){
+//TODO - this function should be eventually removed - no random access in list
+
+template <class T>
+inline
+T& getElementAt(list<T>& lst, typename list<T>::size_type i)
+{
+	assert(i < lst.size());
+	list<T>::iterator itr = lst.begin();
+	while(i--)
+		itr++;
+	return *itr;
+}
+
+inline FDFaceThread& getThreadByInd(CvSeq* pThStatSeq,int ind){
+	assert(ind < pThStatSeq->total);
 	FDFaceThreadStats* pThStat = (FDFaceThreadStats*)cvGetSeqElem(pThStatSeq,ind);
-	FDFaceThread* pMatchedTh   = (FDFaceThread*)cvGetSeqElem(global_pThreads,pThStat->threadId);				
-	return pMatchedTh;
+	return getElementAt(gThreads,pThStat->threadId);
 }
 
 void* cvSeqGetFirst(CvSeq* pSeq){
@@ -98,15 +102,20 @@ float getSizeDiff(CvRect* pRefFace,CvRect* pThFace){
 
 	return thArea/refArea;
 }
+float getSizeDiff(const CvRect& pRefFace,const CvRect& pThFace){
+	float refArea = (float)(pRefFace.height * pRefFace.width);
+	float thArea =  (float)(pThFace.height * pThFace.width);
 
+	return thArea/refArea;
+}
 
 static int cmpFacesDistanceAndSize( const void* _a, const void* _b, void* userdata )
 {
-	CvRect* pFace = (CvRect*)userdata;
-	CvPoint center = getRectCenter((CvRect*)userdata);
+	Face* pFace = (Face*)userdata;
+	CvPoint center = getRectCenter((Face*)userdata);
 
-	CvRect* pAFace = (CvRect*)_a;
-	CvRect* pBFace = (CvRect*)_b;
+	Face* pAFace = (Face*)_a;
+	Face* pBFace = (Face*)_b;
 
 	float distA = getDistance(center,getRectCenter(pAFace));
 	float distB = getDistance(center,getRectCenter(pBFace));
@@ -132,16 +141,19 @@ static int cmpThreadsProximity( const void* _a, const void* _b, void* userdata )
 {
     FDFaceThreadStats* statA = (FDFaceThreadStats*)_a;
     FDFaceThreadStats* statB = (FDFaceThreadStats*)_b;
-	CvRect* pFace = (CvRect*)userdata;
+	Face* pFace = (Face*)userdata;
 	//FDFaceThreadStats* pFaceStats = (FDFaceThreadStats*)userdata;
 
-	CvPoint center = getRectCenter((CvRect*)userdata);
+	CvPoint center = getRectCenter((Face*)userdata);
 
-	FDFaceThread* thA = (FDFaceThread*)cvGetSeqElem(global_pThreads,statA->threadId);
-	FDFaceThread* thB = (FDFaceThread*)cvGetSeqElem(global_pThreads,statB->threadId);
+//	FDFaceThread* thA = (FDFaceThread*)cvGetSeqElem(global_pThreads,statA->threadId);
+//	FDFaceThread* thB = (FDFaceThread*)cvGetSeqElem(global_pThreads,statB->threadId);
 
-	CvRect* pThAFace = (CvRect*)cvSeqGetLast(thA->pFaces);
-	CvRect* pThBFace = (CvRect*)cvSeqGetLast(thB->pFaces);
+	FDFaceThread& thA = getElementAt(gThreads,statA->threadId);
+	FDFaceThread& thB = getElementAt(gThreads,statB->threadId);
+
+	Face& pThAFace = thA._pFaces.back();
+	Face& pThBFace = thB._pFaces.back();
 	
 	statA->pFaceRect = pFace;
 	statB->pFaceRect = pFace;
@@ -152,21 +164,16 @@ static int cmpThreadsProximity( const void* _a, const void* _b, void* userdata )
 	// If the thread face is very close 
 	// then compare by size
 	int veryCloseDistance = DIST_THRESHOLD/4;
-
 	if ((distA < veryCloseDistance)&&(distB < veryCloseDistance)){
-		float coeffA = getSizeDiff(pThAFace,pFace);
-		float coeffB = getSizeDiff(pThBFace,pFace);
-		
+		float coeffA = getSizeDiff(pThAFace,*pFace);
+		float coeffB = getSizeDiff(pThBFace,*pFace);
 		//TODO check also history here
-
 		printf("distA: %d , distB: %d ",distA,distB);
 		return (coeffA < coeffB) ? -1 : (coeffA > coeffB) ? 1:0;
 	}
 
 	return (distA < distB) ? -1 : (distA > distB) ? 1:0;
 }
-
-
 
 float pow2(float fn){
 	return fn*fn;
@@ -204,9 +211,8 @@ int matchThreadToFaceByProxymityAndSize(CvSeq* pThStatSeq,CvRect* pFaceRect){
 	FDFaceThreadStats* pClosestStat = (FDFaceThreadStats*)cvSeqGetFirst(pThStatSeq);
 	
 	if (pThStatSeq->total == 1){
-		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,pClosestStat->threadId);
-		CvRect* pThFace = (CvRect*)cvSeqGetLast(pTh->pFaces);
-		pClosestStat->distance = getDistance(getRectCenter(pFaceRect),getRectCenter(pThFace));		
+		FDFaceThread& pTh = getElementAt(gThreads,pClosestStat->threadId);
+		pClosestStat->distance = getDistance(getRectCenter(pFaceRect),getRectCenter(pTh._pFaces.back()));		
 	}
 	
 	if (pClosestStat->distance > DIST_THRESHOLD) 
@@ -245,36 +251,36 @@ int matchThreadToFaceByProxymityAndSize(CvSeq* pThStatSeq,CvRect* pFaceRect){
 	return 0;
 }
 
-// Currently chooses the most close rectangle from all the threads
-int matchThreadToFaceByProximity(CvSeq* pThIndexes,CvRect* pFaceRect){
-	if (pThIndexes->total == 0) return -1;
-
-	int minIndexIndex = -1;
-	CvPoint center = getRectCenter(pFaceRect);
-	float minDistance = DIST_THRESHOLD;
-
-	for(int i=0;i<pThIndexes->total;i++){
-
-		FDFaceThread* pThread = getThreadByInd(pThIndexes,i);
-		CvRect* pLastThFace = (CvRect*)cvSeqGetLast(pThread->pFaces);
-
-		float newDist = getDistance(center,getRectCenter(pLastThFace));
-		
-		if (newDist < minDistance){
-			minIndexIndex = i;
-			minDistance = newDist;
-		}
-
-	}
-	printf ("DIST : %f MATCH %d ",minDistance,minIndexIndex);
-	return minIndexIndex;
-}
+//// Currently chooses the most close rectangle from all the threads
+//int matchThreadToFaceByProximity(CvSeq* pThIndexes,CvRect* pFaceRect){
+//	if (pThIndexes->total == 0) return -1;
+//
+//	int minIndexIndex = -1;
+//	CvPoint center = getRectCenter(pFaceRect);
+//	float minDistance = DIST_THRESHOLD;
+//
+//	for(int i=0;i<pThIndexes->total;i++){
+//
+//		FDFaceThread& pThread = getThreadByInd(pThIndexes,i);
+//		CvRect* pLastThFace = (CvRect*)cvSeqGetLast(pThread.pFaces);
+//
+//		float newDist = getDistance(center,getRectCenter(pLastThFace));
+//		
+//		if (newDist < minDistance){
+//			minIndexIndex = i;
+//			minDistance = newDist;
+//		}
+//
+//	}
+//	printf ("DIST : %f MATCH %d ",minDistance,minIndexIndex);
+//	return minIndexIndex;
+//}
 
 
 
 // updates history
 // matches faces to threads
-int FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn,CvSeq** pSeqOut){
+list<Face>& FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn){
 	static frame_id_t processed_frame_counter = 0;
 	printf("------------ frame %d ----------------------\n",processed_frame_counter++);
 	
@@ -285,106 +291,108 @@ int FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn,CvSeq** pSeqOut){
 	printf("# Input faces : %d \n",pFacesSeq->total);
 
 	//2. update threads
-	processThreads(cur->pFacesSeq);
+	processThreads(cur->pFacesSeq,processed_frame_counter);
 
 	//3. trim history when too long + handle dead threads
-	if (global_pHistory->total > FD_HISTORY_LENGTH){
+	if (gHistory.size() > FD_HISTORY_LENGTH){
 		popHistory();
 		popAndCleanEmptyThreads();
 	}
 
-	// 4. We clear global_pFacesCurrentFrame and re-add all faces above thresh.
-	cvClearSeq(global_pFacesCurrentFrame);
+	// 4. We clear gFacesCurrentFrameList and re-add all faces above thresh.
+	gFacesInCurrentFrame.clear();
 
+	int i = 0;
+	for(list<FDFaceThread>::iterator itr = gThreads.begin()  ; itr != gThreads.end() ; ++itr)
+	{
+		if (itr->nonMissedCount > MIN_FACE_OCCURENCES_THRESH)
+			gFacesInCurrentFrame.push_back(itr->_pFaces.back());
 
-	for(int i =0;i<global_pThreads->total;i++){
-		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,i);
-
-		if ((pTh->nonMissedCount > MIN_FACE_OCCURENCES_THRESH))
-			cvSeqPush(global_pFacesCurrentFrame,cvSeqGetLast(pTh->pFaces));
-
-		printf("| Th%d  %d-%d-%d  (%d) ",i,pTh->nonMissedCount,pTh->missedCount,pTh->consecutiveMissedCount,
-			pTh->pFaces->total);
+		printf("| Th%d  %d-%d-%d  (%d) ",i++,itr->nonMissedCount,itr->missedCount,
+										   itr->consecutiveMissedCount,(int)itr->_pFaces.size());
 	}
 	printf("\n");
 
-	printf("# faces in result seq: %d\n",global_pFacesCurrentFrame->total);
+	printf("# faces in result seq: %d\n",(int)gFacesInCurrentFrame.size());
 	
 	//5. output
-	*pSeqOut = global_pFacesCurrentFrame;
-	return 0;
+	return gFacesInCurrentFrame;
 }
-
+//TODO - this looks wrong..
 void popAndCleanEmptyThreads(){
-	int count = global_pThreads->total;
-	int index = 0;
+	int count = (int)gThreads.size();
+	list<FDFaceThread>::iterator itr = gThreads.begin();
 	while(count > 0){
-		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,index);
-		if (pTh->pFaces->total > FD_HISTORY_LENGTH)
-			cvSeqPopFront(pTh->pFaces);
+		if ((int)itr->_pFaces.size() > FD_HISTORY_LENGTH)
+			itr->_pFaces.pop_front();
 
-		if(pTh->pFaces->total == 0){
-			cvSeqRemove(global_pThreads,index);
-		}else{
-			
-			index++;
-		}
+		if(itr->_pFaces.empty()) //empty thread
+			gThreads.erase(itr++);
+		else
+			++itr;
 		count--;
 	}
 }
 
-FDFaceThread* addNewThread(){
-	FDFaceThread newThread;
-	newThread.pFaces = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
-	newThread.pCandidates = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
+FDFaceThread& addNewThread(){
+	static FDFaceThread newThread;
+	gThreads.push_back(newThread);
+	gThreads.back().totalCount = gThreads.back().missedCount = gThreads.back().nonMissedCount =  gThreads.back().consecutiveMissedCount = 0;
 
-	newThread.totalCount = 0;	
-	newThread.missedCount = 0;
-	newThread.nonMissedCount = 0;
-	newThread.consecutiveMissedCount = 0;
+	gThreads.back().pCandidates = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(Face), pHistoryStorage );
 
-	return (FDFaceThread*)cvSeqPush(global_pThreads,&newThread);
+	
+	return gThreads.back();
 }
 
 // deletes thread from global_pThreads
 void deleteThread(int index){
-	FDFaceThread* pThread = (FDFaceThread*)cvGetSeqElem(global_pThreads,index);
-	cvClearSeq(pThread->pFaces);
-	cvSeqRemove(global_pThreads,index);
+	list<FDFaceThread>::iterator  itr = gThreads.begin();
+	assert(index < (int)gThreads.size());
+	while(index--) ++itr;
+	itr->_pFaces.clear(); //probably redundant?
+	gThreads.erase(itr);
 }
 
-void addNewFaceToCandidates(FDFaceThread* pThread,CvRect* pFaceRect){
-	cvSeqPush(pThread->pCandidates,pFaceRect);
+void addNewFaceToCandidates(FDFaceThread& pThread,Face* pFaceRect){
+	cvSeqPush(pThread.pCandidates,pFaceRect);
 }
 
-void addNewFaceToThread(FDFaceThread* pThread,CvRect* pFaceRect){
-	cvSeqPush(pThread->pFaces ,pFaceRect);
-}
 
+void addNewFaceToThread(FDFaceThread& pThread,const Face & pFace){
+	pThread._pFaces.push_back(pFace);
+}
+// The returned seq size is as the number of threads in gThreads 
 CvSeq* createThreadStatsSeq(){
 	CvSeq* pThStatsSeq = cvCreateSeq(CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(FDFaceThreadStats),pHistoryStorage);
-	for(int i = 0;i<global_pThreads->total;i++){
-		FDFaceThreadStats stats = cvFDFaceThreadStats(NULL,i);
+	for(int i = 0;i<(int)gThreads.size();i++){
+		static FDFaceThreadStats stats;
+		stats.threadId = i;
 		cvSeqPush( pThStatsSeq, &stats );
 	}
 
 	return pThStatsSeq;
 }
 
-void processThreads(CvSeq* pFacesSeq){
+void processThreads(CvSeq* pInputFaces,frame_id_t frame_id){
+	ftracker(__FUNCTION__,pInputFaces,frame_id);
+	static Face  NULL_FACE = FD_NULL_RECT;
+	NULL_FACE.frame_id = frame_id;
 	//Create thread map
 	CvSeq* pThStatsSeq = createThreadStatsSeq();
-
-	CvSeq* pUnMatchedFaces = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(CvRect), pHistoryStorage );
+	CvSeq* pUnMatchedFaces = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(Face), pHistoryStorage );
 
 	//1. Distribute faces over matching threads
 	//the loop runs to MAX(num_threads,num_rectangles) and each rectangle is matched to an existing thread
-	int num_detected_faces = pFacesSeq->total;
+	int num_detected_faces = pInputFaces->total;
 	int num_existing_threads = pThStatsSeq->total;
 	int loops = (num_detected_faces > num_existing_threads) ?  num_detected_faces : num_existing_threads;
 	for(int i = 0 ; i < loops;	i++)
 	{			
-		CvRect* pFaceRect = (i < num_detected_faces) ? (CvRect*)cvGetSeqElem(pFacesSeq,i) : NULL;
+		Face* pFaceRect = (i < num_detected_faces) ? (Face*)cvGetSeqElem(pInputFaces,i) : NULL;
+		
+		Face f = (pFaceRect) ? *pFaceRect : FD_NULL_RECT;
+		f.frame_id = frame_id;
 		
 		printf("Stats : %d ",pThStatsSeq->total);
 	
@@ -392,40 +400,42 @@ void processThreads(CvSeq* pFacesSeq){
 
 		if (matchedThreadStatIndex > -1){ //i.e. matched 
 			// Get the thread stat struct
+			assert(matchedThreadStatIndex < pThStatsSeq->total); //check out of bounds
 			FDFaceThreadStats* pMathcedThStats = (FDFaceThreadStats*)cvGetSeqElem(pThStatsSeq,matchedThreadStatIndex);
 			// Get the thread itself
-			FDFaceThread* pMatchedTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,pMathcedThStats->threadId);	
+			FDFaceThread& pMatchedTh = getElementAt(gThreads,pMathcedThStats->threadId);	
 			// Add the face to the matching thread
-			addNewFaceToCandidates(pMatchedTh,pFaceRect);
+			addNewFaceToCandidates(pMatchedTh,&f);
 		}else if (pFaceRect != NULL){
-			cvSeqPush(pUnMatchedFaces,pFaceRect);
+			cvSeqPush(pUnMatchedFaces,&f);
 		}
 		printf("\n");
 	}
 	// 2. Choose best of candidates for relevant threads
 	// Confirm candidates
 	// Those who have candidates have continuation
+	assert(pThStatsSeq);
 	for(int i = 0; i < pThStatsSeq->total; i++)
 	{
 		FDFaceThreadStats* pStats = (FDFaceThreadStats*)cvGetSeqElem(pThStatsSeq,i);
-		assert(pStats->threadId < global_pThreads->total);
-		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,pStats->threadId);
-		
-		pTh->totalCount++;
+		assert(pThStatsSeq);
+		//BUG - This call crashes in Release mode since threadId is sometimes out of bounds
+		FDFaceThread& pTh = getElementAt(gThreads,pStats->threadId);
+		pTh.totalCount++;
 		// at least one candidate for this thread - choose best
-		if (pTh->pCandidates->total > 0){
+		if (pTh.pCandidates->total > 0){
 			//sort by proximity and size and choose best (i.e. first one)
-			CvRect* pLastThFace = (CvRect*)cvSeqGetLast(pTh->pFaces);
-			if (pTh->pCandidates->total > 1)
-				cvSeqSort(pTh->pCandidates,cmpFacesDistanceAndSize,pLastThFace);
-			CvRect* pFirstCandidate = (CvRect*)cvSeqGetFirst(pTh->pCandidates);
-			addNewFaceToThread(pTh,pFirstCandidate);
-			cvClearSeq(pTh->pCandidates);
+			assert(!pTh._pFaces.empty());
+			if (pTh.pCandidates->total > 1)
+				cvSeqSort(pTh.pCandidates,cmpFacesDistanceAndSize,&(pTh._pFaces.back()));
+			Face * pFirstCandidate = (Face*)cvSeqGetFirst(pTh.pCandidates);
+			addNewFaceToThread(pTh,*pFirstCandidate);
+			cvClearSeq(pTh.pCandidates);
 
 			/*if (pTh->nonMissedCount < FD_HISTORY_LENGTH)*/ 
-			pTh->nonMissedCount++;
-			pTh->consecutiveMissedCount = 0;
-			if (pTh->missedCount > 0) pTh->missedCount --;
+			pTh.nonMissedCount++;
+			pTh.consecutiveMissedCount = 0;
+			if (pTh.missedCount > 0) pTh.missedCount --;
 			
 			//saveThread(pStats->threadId);
 		}
@@ -434,10 +444,10 @@ void processThreads(CvSeq* pFacesSeq){
 			//YL - missing rectangle in the thread denoted by NULLs
 			//   This seems to mess up following over threads.
 			//addNewFaceToThread(pTh,NULL);
-			++pTh->consecutiveMissedCount;
-			++pTh->missedCount;
-			if ( pTh->missedCount> MAX_ALLOWED_MISSED_COUNT ||
-				 pTh->consecutiveMissedCount > MAX_ALLOWED_CONSECUTIVE_MISSES){
+			++pTh.consecutiveMissedCount;
+			++pTh.missedCount;
+			if ( pTh.missedCount> MAX_ALLOWED_MISSED_COUNT ||
+				 pTh.consecutiveMissedCount > MAX_ALLOWED_CONSECUTIVE_MISSES){
 				deleteThread(pStats->threadId);
 //				pTh = NULL;
 			}
@@ -450,10 +460,10 @@ void processThreads(CvSeq* pFacesSeq){
 
 	// Add Unmatched faces to new threads
 	while(pUnMatchedFaces->total>0){
-		CvRect faceRect ; 
+		Face faceRect ; 
 		cvSeqPop(pUnMatchedFaces,&faceRect);
-		FDFaceThread* pNewThread = addNewThread();
-		addNewFaceToThread(pNewThread,&faceRect);
+		FDFaceThread& pNewThread = addNewThread();
+		addNewFaceToThread(pNewThread,faceRect);
 	}
 
 	
@@ -463,10 +473,12 @@ void processThreads(CvSeq* pFacesSeq){
 
 void popHistory(){
 	ftracker(__FUNCTION__);
-	FDHistoryEntry pPopped;
-	cvSeqPop(global_pHistory, &pPopped);
-	cvReleaseImage(&(pPopped.pFrame));
-	cvClearSeq(pPopped.pFacesSeq);
+	cvReleaseImage(&(gHistory.front().pFrame));
+	cvClearSeq(gHistory.front().pFacesSeq);
+	--gHistory.front().ref_count;
+	assert(gHistory.front().ref_count == 0);//for now, nobody increments it
+	assert(!gHistory.empty());
+	gHistory.pop_front();
 }
 
 FDHistoryEntry* addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id){
@@ -476,12 +488,16 @@ FDHistoryEntry* addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id){
 	// YL - POSSIBLE BUG NOTE seems like we are taking pointer to stack storage here..
 	FDHistoryEntry toAdd = cvCreateHistoryEntry(pVideoFrameCopy,pCopyInSeq);
 	toAdd.frame_id = frame_id;
-	FDHistoryEntry* added = (FDHistoryEntry*)cvSeqPush( global_pHistory, &toAdd );
-	return added;
+	toAdd.ref_count = 1;
+	
+	gHistory.push_back(toAdd);
+	return &(gHistory.back());
+	//FDHistoryEntry* added = (FDHistoryEntry*)cvSeqPush( global_pHistory, &toAdd );
+	//return added;
 }
 
-CvSeq* FdGetHistorySeq(){
-	return global_pHistory;
+list<FDHistoryEntry> & FdGetHistorySeq(){
+	return gHistory;
 }
 
 IplImage * createFrameCopy(IplImage * pImg){
@@ -502,3 +518,94 @@ FDHistoryEntry cvCreateHistoryEntry(IplImage *pImg,CvSeq* pSeqIn){
 	result.pFrame = pImg;
 	return result;
 }
+//============================================================================
+//=================== Start History list code ================================
+//============================================================================
+#include <boost/thread/mutex.hpp> 
+#include <list>
+
+using namespace std;
+
+typedef std::list<FDHistoryEntry> history_list_t;
+
+//globals :
+boost::mutex gHistoryListMutex;
+history_list_t gHistoryList;
+boost::mutex global_pThreadsMutex;
+
+//use for stack
+//boost::lock_guard<boost::mutex> mylocker(gHistoryListMutex);
+// otherwuse
+//gHistoryListMutex.lock() ..
+
+
+// Do not prune list to be shorter than this constant
+//  helps to eliminate boundary case synchronization issues 
+//  and keep adding at back and removing from front, far away
+//  from each other
+const history_list_t::size_type MIN_LIST_SIZE = 20;
+
+frame_id_t getMinFrameToKeep() {
+
+	////It is sufficient to have a readers lock here, if performance is hampered..
+	//boost::lock_guard<boost::mutex> mylocker(global_pThreadsMutex); //TODO
+	if (gThreads.size() == 0)
+		return -1;
+
+	frame_id_t min_frame_id = INT_MAX;
+	for(list<FDFaceThread>::iterator itr = gThreads.begin()  ; itr != gThreads.end() ; ++itr)
+	{
+		assert(!itr->_pFaces.empty());
+		//assert(Face is valid) //TODo
+		if (itr->_pFaces.front().frame_id < min_frame_id)
+			min_frame_id = itr->_pFaces.front().frame_id;		
+	}
+	assert(min_frame_id != INT_MAX); //something was found, since a valid face must be there
+	return min_frame_id;
+}
+
+void deallocHistortEntry(FDHistoryEntry & h){
+	//TODO - frees the image 
+	//Do we want to lock opencv for this?
+	cvReleaseImage(&(h.pFrame));
+}
+void pruneHistory() {
+	//use local to minimize synch issues
+	history_list_t::size_type list_size = -1;
+	while(true)
+	{
+		//don't cut list too short:
+		while (true)  
+		{	
+			{ 
+//				gHistoryListMutex.lock();    //lock list (prevent insertions)
+				list_size = gHistoryList.size();
+//				gHistoryListMutex.unlock();  //unlock list
+			}
+			if (list_size > MIN_LIST_SIZE)
+				break;
+			Sleep(2000); //2 sec
+		}
+
+		//safe to cut list-size-wise ==> free no longer required elements
+		
+		history_list_t::iterator itr = gHistoryList.begin();
+		assert(itr != gHistoryList.end());
+		frame_id_t minFrameToKeep = getMinFrameToKeep();
+		if (minFrameToKeep == -1) minFrameToKeep = INT_MAX; //erase it all...
+		while(itr->frame_id < minFrameToKeep)
+		{
+			deallocHistortEntry(*itr);			
+//			gHistoryListMutex.lock();   //lock list (prevent insertion)
+			gHistoryList.erase(itr++);
+//			gHistoryListMutex.unlock();	//unlock list
+			--list_size;
+			if (list_size <= MIN_LIST_SIZE)
+				break;
+		}
+		Sleep(2000);
+	}
+}
+////============================================================================
+////=================== End History list code ================================
+////============================================================================
