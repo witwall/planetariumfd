@@ -408,6 +408,7 @@ void processThreads(CvSeq* pFacesSeq){
 	for(int i = 0; i < pThStatsSeq->total; i++)
 	{
 		FDFaceThreadStats* pStats = (FDFaceThreadStats*)cvGetSeqElem(pThStatsSeq,i);
+		assert(pStats->threadId < global_pThreads->total);
 		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(global_pThreads,pStats->threadId);
 		
 		pTh->totalCount++;
