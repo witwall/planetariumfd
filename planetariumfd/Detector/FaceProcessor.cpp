@@ -30,8 +30,7 @@ const NullRect FD_NULL_RECT;
 
 // function definition
 IplImage * createFrameCopy(IplImage * pImg);
-FDHistoryEntry cvCreateHistoryEntry(IplImage *pImg,CvSeq* pSeqIn);
-FDHistoryEntry* addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id);
+FDHistoryEntry& addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id);
 void processThreads(CvSeq* pFacesSeq,frame_id_t frame_id= -1);
 void popHistory();
 void popAndCleanEmptyThreads();
@@ -285,13 +284,13 @@ list<Face>& FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn){
 	printf("------------ frame %d ----------------------\n",processed_frame_counter++);
 	
 	//1. update history 
-	FDHistoryEntry* cur = addToHistory(pImg,pSeqIn,processed_frame_counter);
-	CvSeq* pFacesSeq = cur->pFacesSeq; //faces in this frame
+	FDHistoryEntry& cur = addToHistory(pImg,pSeqIn,processed_frame_counter);
+	CvSeq* pFacesSeq = cur.pFacesSeq; //faces in this frame
 
 	printf("# Input faces : %d \n",pFacesSeq->total);
 
 	//2. update threads
-	processThreads(cur->pFacesSeq,processed_frame_counter);
+	processThreads(cur.pFacesSeq,processed_frame_counter);
 
 	//3. trim history when too long + handle dead threads
 	if (gHistory.size() > FD_HISTORY_LENGTH){
@@ -481,19 +480,13 @@ void popHistory(){
 	gHistory.pop_front();
 }
 
-FDHistoryEntry* addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id){
+FDHistoryEntry& addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id){
 	ftracker(__FUNCTION__,pImg,pSeqIn,frame_id);
 	IplImage * pVideoFrameCopy = createFrameCopy(pImg);	
 	CvSeq* pCopyInSeq = cvCloneSeq( pSeqIn , pHistoryStorage );
-	// YL - POSSIBLE BUG NOTE seems like we are taking pointer to stack storage here..
-	FDHistoryEntry toAdd = cvCreateHistoryEntry(pVideoFrameCopy,pCopyInSeq);
-	toAdd.frame_id = frame_id;
-	toAdd.ref_count = 1;
-	
+	FDHistoryEntry toAdd(pVideoFrameCopy,pCopyInSeq,frame_id);
 	gHistory.push_back(toAdd);
-	return &(gHistory.back());
-	//FDHistoryEntry* added = (FDHistoryEntry*)cvSeqPush( global_pHistory, &toAdd );
-	//return added;
+	return gHistory.back();
 }
 
 list<FDHistoryEntry> & FdGetHistorySeq(){
@@ -511,13 +504,6 @@ IplImage * createFrameCopy(IplImage * pImg){
 	return pVideoFrameCopy;
 }
 
-FDHistoryEntry cvCreateHistoryEntry(IplImage *pImg,CvSeq* pSeqIn){
-	ftracker(__FUNCTION__,pImg,pSeqIn);
-	FDHistoryEntry result;
-	result.pFacesSeq = pSeqIn;
-	result.pFrame = pImg;
-	return result;
-}
 //============================================================================
 //=================== Start History list code ================================
 //============================================================================

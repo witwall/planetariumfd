@@ -3,21 +3,16 @@
 using namespace std;
 typedef int frame_id_t;
 
-typedef struct _HistoryEntry{
+
+struct FDHistoryEntry {
 	frame_id_t frame_id; 
-	volatile int ref_count;
+	/*volatile*/ int ref_count;
 	IplImage* pFrame;
 	CvSeq* pFacesSeq;
-}FDHistoryEntry;
-
-//struct FDHistoryEntry { //CPP only..
-//	frame_id_t frame_id; 
-//	IplImage* pFrame;
-//	CvSeq* pFacesSeq;
-//	FDHistoryEntry(IplImage* _pFrame = NULL,CvSeq* _pFacesSeq = NULL,frame_id_t _frame_id= -1) :
-//		frame_id(_frame_id),  pFrame(_pFrame),  pFacesSeq(_pFacesSeq)
-//	{}
-//};
+	FDHistoryEntry(IplImage* _pFrame = NULL,CvSeq* _pFacesSeq = NULL,frame_id_t _frame_id= -1) :
+		frame_id(_frame_id),  ref_count(1), pFrame(_pFrame),  pFacesSeq(_pFacesSeq)
+	{}
+};
 
 
 
