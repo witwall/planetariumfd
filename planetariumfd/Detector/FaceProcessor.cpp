@@ -34,6 +34,7 @@ FDHistoryEntry& addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id);
 void processThreads(CvSeq* pFacesSeq,frame_id_t frame_id= -1);
 void popHistory();
 void popAndCleanEmptyThreads();
+void deallocHistortEntry(FDHistoryEntry & h);
 
 int FdInit(){
 	if( !(pHistoryStorage = cvCreateMemStorage(0)) )
@@ -47,7 +48,8 @@ int FdInit(){
 
 void FdClose(){
 	if(pHistoryStorage) cvReleaseMemStorage(&pHistoryStorage);
-	//TODO add code that frees all images in the new history list
+	for (list<FDHistoryEntry>::iterator itr = gHistory.begin() ; itr != gHistory.end() ; ++itr)
+		deallocHistortEntry(*itr);
 }
 
 inline CvPoint getRectCenter(CvRect* pRect){
@@ -349,7 +351,7 @@ void deleteThread(int index){
 	list<FDFaceThread>::iterator  itr = gThreads.begin();
 	assert(index < (int)gThreads.size());
 	while(index--) ++itr;
-	itr->_pFaces.clear(); //probably redundant?
+//	itr->_pFaces.clear(); //probably redundant?  --- Letting the d-tor do some work
 	gThreads.erase(itr);
 }
 
@@ -516,7 +518,6 @@ typedef std::list<FDHistoryEntry> history_list_t;
 
 //globals :
 boost::mutex gHistoryListMutex;
-history_list_t gHistoryList;
 boost::mutex global_pThreadsMutex;
 
 //use for stack
@@ -565,7 +566,7 @@ void pruneHistory() {
 		{	
 			{ 
 //				gHistoryListMutex.lock();    //lock list (prevent insertions)
-				list_size = gHistoryList.size();
+				list_size = gHistory.size();
 //				gHistoryListMutex.unlock();  //unlock list
 			}
 			if (list_size > MIN_LIST_SIZE)
@@ -575,15 +576,15 @@ void pruneHistory() {
 
 		//safe to cut list-size-wise ==> free no longer required elements
 		
-		history_list_t::iterator itr = gHistoryList.begin();
-		assert(itr != gHistoryList.end());
+		history_list_t::iterator itr = gHistory.begin();
+		assert(itr != gHistory.end());
 		frame_id_t minFrameToKeep = getMinFrameToKeep();
 		if (minFrameToKeep == -1) minFrameToKeep = INT_MAX; //erase it all...
 		while(itr->frame_id < minFrameToKeep)
 		{
 			deallocHistortEntry(*itr);			
 //			gHistoryListMutex.lock();   //lock list (prevent insertion)
-			gHistoryList.erase(itr++);
+			gHistory.erase(itr++);
 //			gHistoryListMutex.unlock();	//unlock list
 			--list_size;
 			if (list_size <= MIN_LIST_SIZE)
