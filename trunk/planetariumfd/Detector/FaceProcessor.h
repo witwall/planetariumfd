@@ -4,13 +4,15 @@ using namespace std;
 typedef int frame_id_t;
 
 
+#include <windows.h>
+DWORD WINAPI pruneHistory(LPVOID param);
+
 struct FDHistoryEntry {
 	frame_id_t frame_id; 
-	/*volatile*/ int ref_count;
 	IplImage* pFrame;
 	CvSeq* pFacesSeq;
 	FDHistoryEntry(IplImage* _pFrame = NULL,CvSeq* _pFacesSeq = NULL,frame_id_t _frame_id= -1) :
-		frame_id(_frame_id),  ref_count(1), pFrame(_pFrame),  pFacesSeq(_pFacesSeq)
+		frame_id(_frame_id),  pFrame(_pFrame),  pFacesSeq(_pFacesSeq)
 	{}
 };
 
@@ -36,6 +38,8 @@ struct Face : public CvRect {
 };
 
 struct FDFaceThread {
+	//TODO 
+	//mutex _pFacesMutex;
 	list<Face> _pFaces;
 	CvSeq* pCandidates; // Candidates to be next face
 	//list<Face> _pCandidates;  // Candidates to be next face
@@ -44,35 +48,20 @@ struct FDFaceThread {
 	int missedCount; //note, currently (missedCount + nonMissedCount) != total (since nonMissedCount-- is used).
 	int nonMissedCount;
 	int consecutiveMissedCount; //straight consecituve frames with no match for this thread
-
+	
+	int minRequiredFrame();
+	int numRequiredFrames();
+	void serializeToLog(ostream & o = cout);
+	void pruneFacesList();
+	FDFaceThread() : pCandidates(NULL), totalCount(0) , missedCount(0) , nonMissedCount(0), consecutiveMissedCount(0) {}
 	~FDFaceThread() {
-		//TODO - thread serialization code goes here
-		//     - notify server
-		//     - remove from gThreads so that history can be safely pruned
-		cout << '\t' << __FUNCTION__ << " " << _pFaces.size() <<  " detections in a " 
-			 << ((!_pFaces.empty()) ? (_pFaces.back().frame_id - _pFaces.front().frame_id +1 ) : 0)<< " frame stretch " 
-			 << "tot:" << totalCount 
-			 << ",cm:" << consecutiveMissedCount 
-			 << ",m:" << missedCount 
-			 << ",nm:" << nonMissedCount 
-			 << " (cand:" << ((pCandidates) ? pCandidates->total : 0)<< ")" << endl;
-		
-		cout << "\t";
-		for (list<Face>::iterator itr = _pFaces.begin() ; itr != _pFaces.end() ; ++itr)
-		{
-			cout << "<" 
-				 << itr->frame_id	
-				 //<<  ','  << itr->x
-				 //<<  ','  << itr->y		
-				 //<<  ','  << itr->width
-				 //<<  ','  << itr->height 
-				 << ">,";
-		}
-		cout << endl << endl;
-
-
+		//serializeToLog(cout);
 	}
 };
+
+#include <windows.h>
+DWORD WINAPI saveAndDeleteThread(LPVOID param);
+
 
 
 int FdInit();

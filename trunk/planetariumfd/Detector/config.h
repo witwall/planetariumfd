@@ -108,5 +108,19 @@ public:
 	}
 };
 
+#include <Winbase.h>// (include Windows.h)
+
+class cs_locker {
+	LPCRITICAL_SECTION _cs;
+public:
+	cs_locker(LPCRITICAL_SECTION cs) : _cs(cs) {
+		EnterCriticalSection(_cs);
+	}
+	~cs_locker() {
+		LeaveCriticalSection(_cs);
+	}
+};
+
+
 
 #endif

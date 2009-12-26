@@ -199,6 +199,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\FaceThread.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\PlanetariumFD.cpp"
 				>
 			</File>

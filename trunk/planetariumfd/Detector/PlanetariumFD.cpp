@@ -32,6 +32,7 @@
 #include "FaceProcessor.h"
 
 
+void blabla();
 //// Constants
 const char * DISPLAY_WINDOW = "DisplayWindow";
 
@@ -64,6 +65,9 @@ CvScalar colorArr[3]= {CV_RGB(255,0,0),
 //
 int _tmain(int argc, _TCHAR* argv[])
 {
+//	blabla();
+//	Sleep(120000);
+
 	if( !initAll() ) 
 		exitProgram(-1);
 
@@ -165,47 +169,39 @@ int _tmain(int argc, _TCHAR* argv[])
 			if (pFaceRect->y+pFaceRect->height > max_y) max_y =  pFaceRect->y+pFaceRect->height;
 		}
 	}
-	assert(found); //some rect in history..
+	//assert(found); //some rect in history..
 	CvRect consensus_rect;
 	consensus_rect.x = min_x;
 	consensus_rect.y = min_y;
 	consensus_rect.width  = max_x - min_x;
 	consensus_rect.height = max_y - min_y;
 
-
+	Sleep(3000); //just to make sure that pruneHistory isn't modifying..
 	cout << "start playback loop " << endl;
 	int k = 0;
 	for (list<FDHistoryEntry>::iterator itr = pHistory.begin() ; itr != pHistory.end(); ++itr)
 	{
 		cout << ++k << endl;
-
+		//cvResetImageROI(history_itr->pFrame);  //now reset by FDFaceThread
 		pVideoFrameCopy = cvCreateImage( cvGetSize(itr->pFrame ), 8, 3 ); //TODO query image for its properties
 		cvCopy( itr->pFrame , pVideoFrameCopy, 0 );
 		CvSeq* pFacesSeq = itr->pFacesSeq;
 
 		for(int i = 0 ;i < pFacesSeq->total ;i++){				
-			CvRect * pFaceRect = (CvRect*)cvGetSeqElem(pFacesSeq, i);
+			Face * pFaceRect = (Face*)cvGetSeqElem(pFacesSeq, i);
 			assert(pFaceRect != NULL);
 			CvPoint pt1 = cvPoint(pFaceRect->x,pFaceRect->y);
 			CvPoint pt2 = cvPoint(pFaceRect->x + pFaceRect->width,pFaceRect->y + pFaceRect->height);
-			cvRectangle( pVideoFrameCopy, pt1, pt2,
-						 colorArr[i%3],2,8,0);
-
-#ifdef CROP_PLAYBACK_FACE
-			cvResetImageROI(pVideoFrameCopy); //this will make us use only the last one
-			
-			cvSetImageROI(pVideoFrameCopy,*pFaceRect);
-			{   //write cropped image to image file
-				ostringstream filename;
-				filename << "G:\\projects\\images\\yanivpfd" << playback_counter << ".jpg";
-				if (!cvSaveImage(filename.str().c_str(),pVideoFrameCopy))
-					cout << "couldn't save " << filename.str() << endl;
-			}
-#endif
+			if (itr->frame_id == pFaceRect->frame_id)
+				cvRectangle( pVideoFrameCopy, pt1, pt2,	 colorArr[i%3],3,8,0);
+			else
+				cvRectangle( pVideoFrameCopy, pt1, pt2, colorArr[i%3],1,4,0);
 		}
 
 		if (pFacesSeq->total > 0) 
-		{	//write 1st sequence if exists to cropped vid
+		{	
+			assert(found);
+			//write 1st sequence if exists to cropped vid
 			if (!croppedVidWriter)
 				croppedVidWriter=cvCreateVideoWriter(VIDEO_CROPPED_PLAYBACK_FILENAME,
 									VIDEO_OUTPUT_FORMAT,
@@ -219,7 +215,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			IplImage *croppedImg = cvCreateImage(cvGetSize(pVideoFrameCopy),
 								   pVideoFrameCopy->depth,
 								   pVideoFrameCopy->nChannels);	
+			assert(croppedImg);
 			cvCopy(pVideoFrameCopy, croppedImg, NULL);
+			assert(croppedVidWriter);
 			cvWriteFrame(croppedVidWriter,croppedImg);
 			cvReleaseImage(&croppedImg);
 		}
@@ -231,6 +229,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		Sleep(50);	
 		++playback_counter;	
 	}
+
+	
 	cvReleaseVideoWriter(&playbackVidWriter);
 	cvReleaseVideoWriter(&croppedVidWriter);
 	exitProgram(0);
@@ -321,4 +321,43 @@ bool captureVideoFrame()
 	}
 	return true;
 }
+#include <windows.h>
+CRITICAL_SECTION blabla_cs;
+DWORD WINAPI peridiocPrint(LPVOID param){
+//	int data = *(int*)param;
+	static int ppcnt = 0;
+	int myid = ppcnt++;
+	const char * data = *(const char**) param;
+	int cnt = 0;
+	while(true) {
+		cs_locker locker(&blabla_cs);
+		for (int i = 0 ; i < 10 ; ++i)
+		{
+			cout << /*__FUNCTION__ << ':' << ++cnt <<   ':' <<*/ myid << /*'\t' << data <<*/ endl;
+			Sleep(50);
+		}
+		cout << endl;
+		Sleep(1000);
+	}
+}
 
+
+void blabla() {
+	InitializeCriticalSection(&blabla_cs);
+	//All thread functions must have this prototype:
+	//DWORD WINAPI threadfunc(LPVOID param);
+	//int param = 317;
+	const char * param = "Hello world";
+	LPDWORD threadID = 0;
+	for (int i = 0 ; i < 2 ; ++i)
+	{
+		HANDLE h = CreateThread(NULL, //LPSECURITY_ATTRIBUTES secAttr,
+						 0,//SIZE_T stackSize,
+						 &peridiocPrint,//LPTHREAD_START_ROUTINE threadFunc,
+						 &param,//LPVOID param,
+						 0,//DWORD flags,
+						 threadID//, LPDWORD threadID);
+						 );
+		cout << "threadID:" << threadID << " will execute peridiocPrint() " << endl;
+	}
+}

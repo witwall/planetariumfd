@@ -6,9 +6,21 @@
 #include <list>
 using namespace std;
 
-list<FDHistoryEntry> gHistory;
-list<FDFaceThread>   gThreads;
-list<Face>           gFacesInCurrentFrame;
+typedef list<FDFaceThread>   fdthread_list_t;
+typedef list<FDHistoryEntry> history_list_t;
+typedef list<Face>           face_list_t;
+
+history_list_t		gHistory;
+fdthread_list_t gThreads;
+fdthread_list_t gThreads_beingSerialized;
+
+face_list_t         gFacesInCurrentFrame;
+
+CRITICAL_SECTION gHistoryCS;
+CRITICAL_SECTION gThreadsCS;
+
+
+
 
 //CvSeq* gFacesCurrentFrameList = NULL; //faces above threshold in current frame
 
@@ -34,7 +46,9 @@ FDHistoryEntry& addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id);
 void processThreads(CvSeq* pFacesSeq,frame_id_t frame_id= -1);
 void popHistory();
 void popAndCleanEmptyThreads();
-void deallocHistortEntry(FDHistoryEntry & h);
+void deallocHistoryEntry(FDHistoryEntry & h);
+
+void saveThreadImages(FDFaceThread & thread);
 
 int FdInit(){
 	if( !(pHistoryStorage = cvCreateMemStorage(0)) )
@@ -42,14 +56,25 @@ int FdInit(){
 		fprintf(stderr, "Can\'t allocate memory for face history\n");
 		return 0;
 	}
+	InitializeCriticalSection(&gThreadsCS);
+	InitializeCriticalSection(&gHistoryCS);
+		
+
+	cout << "CreateThread(..) for pruneHistory" << endl;
+	CreateThread(NULL,0,&pruneHistory,NULL //param
+				 ,0,NULL);
+
+
 
 	return 1;
 }
 
 void FdClose(){
 	if(pHistoryStorage) cvReleaseMemStorage(&pHistoryStorage);
-	for (list<FDHistoryEntry>::iterator itr = gHistory.begin() ; itr != gHistory.end() ; ++itr)
-		deallocHistortEntry(*itr);
+	for (history_list_t::iterator itr = gHistory.begin() ; itr != gHistory.end() ; ++itr)
+		deallocHistoryEntry(*itr);
+	DeleteCriticalSection(&gThreadsCS);
+	DeleteCriticalSection(&gHistoryCS);
 }
 
 inline CvPoint getRectCenter(CvRect* pRect){
@@ -286,6 +311,8 @@ list<Face>& FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn){
 	printf("------------ frame %d ----------------------\n",processed_frame_counter++);
 	
 	//1. update history 
+	
+	//TODO 
 	FDHistoryEntry& cur = addToHistory(pImg,pSeqIn,processed_frame_counter);
 	CvSeq* pFacesSeq = cur.pFacesSeq; //faces in this frame
 
@@ -295,16 +322,20 @@ list<Face>& FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn){
 	processThreads(cur.pFacesSeq,processed_frame_counter);
 
 	//3. trim history when too long + handle dead threads
-	if (gHistory.size() > FD_HISTORY_LENGTH){
-		popHistory();
-		popAndCleanEmptyThreads();
-	}
+	if (processed_frame_counter % 30) //every this number of threads we prune 
+		for (fdthread_list_t::iterator itr = gThreads.begin() ; itr != gThreads.end(); ++itr)
+			itr->pruneFacesList();
+	
+	//if (gHistory.size() > FD_HISTORY_LENGTH){
+	//	popHistory();
+	//	popAndCleanEmptyThreads();
+	//}
 
 	// 4. We clear gFacesCurrentFrameList and re-add all faces above thresh.
 	gFacesInCurrentFrame.clear();
 
 	int i = 0;
-	for(list<FDFaceThread>::iterator itr = gThreads.begin()  ; itr != gThreads.end() ; ++itr)
+	for(fdthread_list_t::iterator itr = gThreads.begin()  ; itr != gThreads.end() ; ++itr)
 	{
 		if (itr->nonMissedCount > MIN_FACE_OCCURENCES_THRESH)
 			gFacesInCurrentFrame.push_back(itr->_pFaces.back());
@@ -322,7 +353,7 @@ list<Face>& FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn){
 //TODO - this looks wrong..
 void popAndCleanEmptyThreads(){
 	int count = (int)gThreads.size();
-	list<FDFaceThread>::iterator itr = gThreads.begin();
+	fdthread_list_t::iterator itr = gThreads.begin();
 	while(count > 0){
 		if ((int)itr->_pFaces.size() > FD_HISTORY_LENGTH)
 			itr->_pFaces.pop_front();
@@ -336,10 +367,8 @@ void popAndCleanEmptyThreads(){
 }
 
 FDFaceThread& addNewThread(){
-	static FDFaceThread newThread;
+	static const FDFaceThread newThread;
 	gThreads.push_back(newThread);
-	gThreads.back().totalCount = gThreads.back().missedCount = gThreads.back().nonMissedCount =  gThreads.back().consecutiveMissedCount = 0;
-
 	gThreads.back().pCandidates = cvCreateSeq( CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(Face), pHistoryStorage );
 
 	
@@ -347,12 +376,29 @@ FDFaceThread& addNewThread(){
 }
 
 // deletes thread from global_pThreads
-void deleteThread(int index){
-	list<FDFaceThread>::iterator  itr = gThreads.begin();
+void deleteThread(int index)
+{
+	EnterCriticalSection(&gThreadsCS);
+	fdthread_list_t::iterator  itr = gThreads.begin();
 	assert(index < (int)gThreads.size());
 	while(index--) ++itr;
-//	itr->_pFaces.clear(); //probably redundant?  --- Letting the d-tor do some work
+	assert(itr != gThreads.end());
+	gThreads_beingSerialized.push_back(FDFaceThread());
+	swap(gThreads_beingSerialized.back(),*itr);
 	gThreads.erase(itr);
+	LeaveCriticalSection(&gThreadsCS);
+	//lock not needed no more
+		
+	//	itr->_pFaces.clear(); //probably redundant?  --- Letting the d-tor do some work
+
+	//OLD
+	//gThreads.erase(itr);
+
+	//NEW:
+	cout << "CreateThread(..) for saveAndDeleteThread" <<endl;
+	CreateThread(NULL,0,&saveAndDeleteThread,&gThreads_beingSerialized.back() //param
+				 ,0,NULL);
+	//saveAndDeleteThread(&gThreads_beingSerialized.back());//(&(*itr));
 }
 
 void addNewFaceToCandidates(FDFaceThread& pThread,Face* pFaceRect){
@@ -476,8 +522,6 @@ void popHistory(){
 	ftracker(__FUNCTION__);
 	cvReleaseImage(&(gHistory.front().pFrame));
 	cvClearSeq(gHistory.front().pFacesSeq);
-	--gHistory.front().ref_count;
-	assert(gHistory.front().ref_count == 0);//for now, nobody increments it
 	assert(!gHistory.empty());
 	gHistory.pop_front();
 }
@@ -486,12 +530,17 @@ FDHistoryEntry& addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id){
 	ftracker(__FUNCTION__,pImg,pSeqIn,frame_id);
 	IplImage * pVideoFrameCopy = createFrameCopy(pImg);	
 	CvSeq* pCopyInSeq = cvCloneSeq( pSeqIn , pHistoryStorage );
+	
 	FDHistoryEntry toAdd(pVideoFrameCopy,pCopyInSeq,frame_id);
+	
+	EnterCriticalSection(&gHistoryCS);
 	gHistory.push_back(toAdd);
+	LeaveCriticalSection(&gHistoryCS);
+
 	return gHistory.back();
 }
 
-list<FDHistoryEntry> & FdGetHistorySeq(){
+history_list_t & FdGetHistorySeq(){
 	return gHistory;
 }
 
@@ -514,18 +563,6 @@ IplImage * createFrameCopy(IplImage * pImg){
 
 using namespace std;
 
-typedef std::list<FDHistoryEntry> history_list_t;
-
-//globals :
-boost::mutex gHistoryListMutex;
-boost::mutex global_pThreadsMutex;
-
-//use for stack
-//boost::lock_guard<boost::mutex> mylocker(gHistoryListMutex);
-// otherwuse
-//gHistoryListMutex.lock() ..
-
-
 // Do not prune list to be shorter than this constant
 //  helps to eliminate boundary case synchronization issues 
 //  and keep adding at back and removing from front, far away
@@ -535,64 +572,159 @@ const history_list_t::size_type MIN_LIST_SIZE = 20;
 frame_id_t getMinFrameToKeep() {
 
 	////It is sufficient to have a readers lock here, if performance is hampered..
-	//boost::lock_guard<boost::mutex> mylocker(global_pThreadsMutex); //TODO
+	cs_locker locker(&gThreadsCS);
 	if (gThreads.size() == 0)
 		return -1;
 
 	frame_id_t min_frame_id = INT_MAX;
-	for(list<FDFaceThread>::iterator itr = gThreads.begin()  ; itr != gThreads.end() ; ++itr)
+	for(fdthread_list_t::iterator itr = gThreads.begin()  ; itr != gThreads.end() ; ++itr)
 	{
 		assert(!itr->_pFaces.empty());
 		//assert(Face is valid) //TODo
 		if (itr->_pFaces.front().frame_id < min_frame_id)
 			min_frame_id = itr->_pFaces.front().frame_id;		
 	}
+	for(fdthread_list_t::iterator itr = gThreads_beingSerialized.begin()  ; itr != gThreads_beingSerialized.end() ; ++itr)
+	{
+		assert(!itr->_pFaces.empty());
+		//assert(Face is valid) //TODo
+		if (itr->_pFaces.front().frame_id < min_frame_id)
+			min_frame_id = itr->_pFaces.front().frame_id;
+	}
 	assert(min_frame_id != INT_MAX); //something was found, since a valid face must be there
 	return min_frame_id;
 }
 
-void deallocHistortEntry(FDHistoryEntry & h){
-	//TODO - frees the image 
-	//Do we want to lock opencv for this?
+void deallocHistoryEntry(FDHistoryEntry & h){
+	ftracker(__FUNCTION__);
+	//TODO - Do we want to lock opencv for this?
 	cvReleaseImage(&(h.pFrame));
 }
-void pruneHistory() {
+#define PRUNE_HISTORY_EVERY_MS 1000
+#include <windows.h>
+DWORD WINAPI pruneHistory(LPVOID param){
 	//use local to minimize synch issues
-	history_list_t::size_type list_size = -1;
+	history_list_t::size_type list_size = 0;
+
+	//don't cut list too short:
+	while (list_size <= MIN_LIST_SIZE)  
+	{	
+		EnterCriticalSection(&gHistoryCS);
+		list_size = gHistory.size();
+		LeaveCriticalSection(&gHistoryCS);
+		Sleep(PRUNE_HISTORY_EVERY_MS); 
+	}
+
 	while(true)
 	{
-		//don't cut list too short:
-		while (true)  
-		{	
-			{ 
-//				gHistoryListMutex.lock();    //lock list (prevent insertions)
-				list_size = gHistory.size();
-//				gHistoryListMutex.unlock();  //unlock list
-			}
-			if (list_size > MIN_LIST_SIZE)
-				break;
-			Sleep(2000); //2 sec
-		}
-
-		//safe to cut list-size-wise ==> free no longer required elements
+		//locks gThreads - DO NOT LOCK HISTORY (DEADLOCK!)
+		frame_id_t minFrameToKeep = getMinFrameToKeep();
 		
+		//safe to cut list-size-wise ==> free no longer required elements
+		// TODO - want to protect begin with mutex? wer'e only pushin at back
 		history_list_t::iterator itr = gHistory.begin();
 		assert(itr != gHistory.end());
-		frame_id_t minFrameToKeep = getMinFrameToKeep();
 		if (minFrameToKeep == -1) minFrameToKeep = INT_MAX; //erase it all...
-		while(itr->frame_id < minFrameToKeep)
+		while(itr->frame_id < minFrameToKeep && list_size > MIN_LIST_SIZE )
 		{
-			deallocHistortEntry(*itr);			
-//			gHistoryListMutex.lock();   //lock list (prevent insertion)
+			deallocHistoryEntry(*itr);			
+			EnterCriticalSection(&gHistoryCS);
 			gHistory.erase(itr++);
-//			gHistoryListMutex.unlock();	//unlock list
-			--list_size;
-			if (list_size <= MIN_LIST_SIZE)
-				break;
+			list_size = gHistory.size();
+			LeaveCriticalSection(&gHistoryCS);
 		}
-		Sleep(2000);
+		Sleep(PRUNE_HISTORY_EVERY_MS);
+		//size might have grown while sleeping..
+		EnterCriticalSection(&gHistoryCS);
+		list_size = gHistory.size();
+		LeaveCriticalSection(&gHistoryCS);
 	}
 }
 ////============================================================================
 ////=================== End History list code ================================
 ////============================================================================
+
+
+
+
+
+
+
+#include <windows.h>
+//param is a Thread * 
+DWORD WINAPI saveAndDeleteThread(LPVOID param) {
+	ftracker(__FUNCTION__,param,'x');
+	FDFaceThread * pTh  = (FDFaceThread *) param;
+	assert(pTh);	
+	saveThreadImages(*pTh);
+	pTh->serializeToLog(cout);
+
+	//TODO mylocker(gThreadsMutex)
+	for (fdthread_list_t::iterator itr = gThreads_beingSerialized.begin() ; itr != gThreads_beingSerialized.end() ; ++itr) {
+		if (&(*itr) == pTh){
+			cs_locker locker(&gThreadsCS); // do not erase while pruneHistory is looking at it..
+			gThreads_beingSerialized.erase(itr);
+			pTh = NULL; //gThreads.erase made pointer point at destructed Thread obj
+			return 0;
+		}
+	}
+	assert(false); // thread not found!
+	return -1;
+}
+
+
+#include <direct.h>
+int image_series_cnt = 0;
+void saveThreadImages(FDFaceThread & thread) 
+{
+	thread.pruneFacesList();
+	int my_series_num = ++image_series_cnt; //multi-threading kind of more protection
+	char path [1024];
+	sprintf(path,"images_dir_%d",my_series_num);
+	_rmdir(path);
+	if (_mkdir(path))
+		cerr << "failed to mkdir " << path;
+	
+
+	
+	if (thread._pFaces.empty())
+		return; //nothing to do
+
+	
+	face_list_t::iterator    faces_itr   = thread._pFaces.begin();
+	////TODO mylocker(pFacesMutex) - just to be on the safe side for future changes..
+	//TODO gHistoryMutex.lock
+	assert(!gHistory.empty());
+	history_list_t::iterator history_itr = gHistory.begin();
+	while(history_itr->frame_id < faces_itr->frame_id)
+		++history_itr;
+	//TODO gHistoryMutex.unlock  //ok since we're guaranteed history past this point can't be pruned
+	assert(history_itr != gHistory.end());
+	assert(history_itr->frame_id == faces_itr->frame_id);
+	
+
+
+	int image_num = 0;
+	
+	for( ; faces_itr != thread._pFaces.end() ; ++image_num)
+	{
+		if (history_itr->frame_id < faces_itr->frame_id) {
+			; //nothing - face missing in this frame
+		} else {
+			assert(history_itr->frame_id == faces_itr->frame_id);
+			ostringstream oss_filename;
+			oss_filename << path << "\\planetarium_image_" << my_series_num << '_' << image_num << ".jpg";
+			cvResetImageROI(history_itr->pFrame); 
+			cvSetImageROI(history_itr->pFrame,*faces_itr);
+			if (!cvSaveImage(oss_filename.str().c_str(),history_itr->pFrame))
+				cerr << "Couldn't save image " << oss_filename.str() << endl;
+			cvResetImageROI(history_itr->pFrame); 
+			++faces_itr;
+		}
+		++history_itr;
+		assert(history_itr != gHistory.end());
+	}
+}
+
+
+
