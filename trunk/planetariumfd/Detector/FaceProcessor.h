@@ -35,7 +35,7 @@ struct Face : public CvRect {
 	}
 };
 
-typedef struct _FaceThread{
+struct FDFaceThread {
 	list<Face> _pFaces;
 	CvSeq* pCandidates; // Candidates to be next face
 	//list<Face> _pCandidates;  // Candidates to be next face
@@ -44,7 +44,35 @@ typedef struct _FaceThread{
 	int missedCount; //note, currently (missedCount + nonMissedCount) != total (since nonMissedCount-- is used).
 	int nonMissedCount;
 	int consecutiveMissedCount; //straight consecituve frames with no match for this thread
-}FDFaceThread;
+
+	~FDFaceThread() {
+		//TODO - thread serialization code goes here
+		//     - notify server
+		//     - remove from gThreads so that history can be safely pruned
+		cout << '\t' << __FUNCTION__ << " " << _pFaces.size() <<  " detections in a " 
+			 << ((!_pFaces.empty()) ? (_pFaces.back().frame_id - _pFaces.front().frame_id +1 ) : 0)<< " frame stretch " 
+			 << "tot:" << totalCount 
+			 << ",cm:" << consecutiveMissedCount 
+			 << ",m:" << missedCount 
+			 << ",nm:" << nonMissedCount 
+			 << " (cand:" << ((pCandidates) ? pCandidates->total : 0)<< ")" << endl;
+		
+		cout << "\t";
+		for (list<Face>::iterator itr = _pFaces.begin() ; itr != _pFaces.end() ; ++itr)
+		{
+			cout << "<" 
+				 << itr->frame_id	
+				 //<<  ','  << itr->x
+				 //<<  ','  << itr->y		
+				 //<<  ','  << itr->width
+				 //<<  ','  << itr->height 
+				 << ">,";
+		}
+		cout << endl << endl;
+
+
+	}
+};
 
 
 int FdInit();
