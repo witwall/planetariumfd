@@ -19,6 +19,8 @@ using namespace std;
 #define MAX_ALLOWED_CONSECUTIVE_MISSES 3
 
 #define DIST_THRESHOLD 100
+//TODO ADD FLOAT VERY CLOSE DIST THRESH
+
 //#define OPENCV_ROOT  "D:\\Projects\\OpenCV\\latest_tested_snapshot\\opencv"
 #define OPENCV_ROOT  "G:\\projects\\OpenCV2.0"
 //

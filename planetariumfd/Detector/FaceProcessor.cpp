@@ -44,6 +44,8 @@ const NullRect FD_NULL_RECT;
 IplImage * createFrameCopy(IplImage * pImg);
 FDHistoryEntry& addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id);
 void processThreads(CvSeq* pFacesSeq,frame_id_t frame_id= -1);
+void processThreads2(CvSeq* pFacesSeq,frame_id_t frame_id= -1);
+
 void popHistory();
 void popAndCleanEmptyThreads();
 void deallocHistoryEntry(FDHistoryEntry & h);
@@ -319,7 +321,7 @@ list<Face>& FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn){
 	printf("# Input faces : %d \n",pFacesSeq->total);
 
 	//2. update threads
-	processThreads(cur.pFacesSeq,processed_frame_counter);
+	processThreads2(cur.pFacesSeq,processed_frame_counter);
 
 	//3. trim history when too long + handle dead threads
 	if (processed_frame_counter % 30) //every this number of threads we prune 
@@ -421,6 +423,7 @@ CvSeq* createThreadStatsSeq(){
 	return pThStatsSeq;
 }
 
+
 void processThreads(CvSeq* pInputFaces,frame_id_t frame_id){
 	ftracker(__FUNCTION__,pInputFaces,frame_id);
 	static Face  NULL_FACE = FD_NULL_RECT;
@@ -517,6 +520,144 @@ void processThreads(CvSeq* pInputFaces,frame_id_t frame_id){
 
 	cvClearSeq(pThStatsSeq);	
 }
+
+
+struct Matching {
+	bool  found;
+	float faceDistance;
+	Face  face;
+	FDFaceThread * th;
+	Matching() : found(false)  , th(NULL) {}
+};
+
+//0. Init local data structures	
+//1. Iterate input faces
+//   Choose best matching thread among those within thresh
+//     if none above thresh
+//			add to new threads in the end (part3) 
+//     else if this thread has no face yet (for this frame) 
+//          add it and remember dist
+//	   else if this face is better for this thread than prev best
+//			replace it with current, update dist
+//     faces 
+//
+//2. Iterate threads, 
+//          update various counters in thread
+//			possibly delete those having no face in this frame.
+//
+//3. Create new threads from unmatched faces
+
+
+
+void processThreads2(CvSeq* pInputFaces,frame_id_t frame_id){
+	ftracker(__FUNCTION__,pInputFaces,frame_id);
+	
+	//build face list: (lists conversion)
+	face_list_t input_faces;
+	{
+		Face  NULL_FACE = FD_NULL_RECT;
+		NULL_FACE.frame_id = frame_id;
+		
+		while(pInputFaces->total>0){
+			input_faces.push_back(NULL_FACE);
+			cvSeqPop(pInputFaces,&input_faces.back()); //this seq uses a sizeof of CvRect, not Face
+			input_faces.back().frame_id = frame_id;
+		}
+	}
+
+	//init matches
+	vector<Matching> matches;
+	{
+		matches.resize(gThreads.size());
+		int i = 0;
+		for (fdthread_list_t::iterator thread_itr = gThreads.begin() ; thread_itr != gThreads.end() ; ++thread_itr, ++i)
+			matches[i].th = &(*thread_itr);
+	}
+
+
+	// part 1
+	for (face_list_t::iterator face_itr = input_faces.begin() ; face_itr != input_faces.end() ; /*++face_itr*/)
+	{
+		float min_dist = -1.0;
+		int thInd = -1;
+
+		int i = 0;
+		for (fdthread_list_t::iterator thread_itr = gThreads.begin() ; thread_itr != gThreads.end() ; ++thread_itr, ++i)	{
+			float dist = getDistance(getRectCenter(*face_itr), getRectCenter(thread_itr->_pFaces.back()));
+			if (dist <= DIST_THRESHOLD) {
+				if (thInd == -1){ //face not matched yet
+					min_dist = dist;
+					thInd = i;
+				} else if (dist < min_dist)  { //face matched, this one maybe better
+					if (min_dist < DIST_THRESHOLD/4  &&
+						(getSizeDiff(*face_itr,thread_itr->_pFaces.back()) < getSizeDiff(*face_itr,matches[i].face))
+						)
+					{
+						min_dist = dist;
+						thInd = i;
+					}
+				}
+			}
+		} //end for thread_itr
+	
+		if (thInd == -1) //unmatched
+			++face_itr; //leave it in for part3
+		else //matched, see if this is a better candidate
+		{
+			if ((!matches[thInd].found) || 
+				(min_dist < matches[thInd].faceDistance && matches[thInd].faceDistance > DIST_THRESHOLD/4) ||
+				( matches[thInd].faceDistance < DIST_THRESHOLD/4 && min_dist < DIST_THRESHOLD/4 && 
+				  getSizeDiff(*face_itr,matches[thInd].th->_pFaces.back()) < getSizeDiff(matches[thInd].face,matches[thInd].th->_pFaces.back())
+				 )
+				 ){
+				matches[thInd].found = true;
+				matches[thInd].face = *face_itr;
+				matches[thInd].faceDistance = min_dist;
+			}
+			input_faces.erase(face_itr++); //was matched so will not seed new thread
+		}
+	} //end for face_itr
+			
+	//part 2
+	{   //update counters per thread and faces
+
+		int i = 0;
+		for (fdthread_list_t::iterator thread_itr = gThreads.begin() ; thread_itr != gThreads.end() ; ++thread_itr, ++i)
+		{
+			FDFaceThread * th =  matches[i].th;
+			th->totalCount++;
+			if (matches[i].found)
+			{
+				th->nonMissedCount++;
+				th->consecutiveMissedCount = 0;
+				if (th->missedCount > 0) th->missedCount --;
+				addNewFaceToThread(*th,matches[i].face);
+			}
+			else {
+				th->consecutiveMissedCount++;
+				th->missedCount++;			
+			}
+		} 
+	}
+	{	// delete threads
+		int i = 0;
+		for (fdthread_list_t::iterator thread_itr = gThreads.begin() ; thread_itr != gThreads.end() ; ++i)
+		{
+			++thread_itr; //must increment before deleteThread
+			FDFaceThread * th =  matches[i].th;
+			if ( th->missedCount> MAX_ALLOWED_MISSED_COUNT ||
+		 		 th->consecutiveMissedCount > MAX_ALLOWED_CONSECUTIVE_MISSES){				 
+					 deleteThread(i);
+			}
+		}
+	}
+	
+	//part3
+	for (face_list_t::iterator face_itr = input_faces.begin() ; face_itr != input_faces.end() ; ++face_itr)
+		addNewFaceToThread(addNewThread(),*face_itr);
+
+}
+
 
 void popHistory(){
 	ftracker(__FUNCTION__);
