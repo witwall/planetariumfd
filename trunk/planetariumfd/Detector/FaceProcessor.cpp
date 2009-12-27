@@ -10,11 +10,12 @@ typedef list<FDFaceThread>   fdthread_list_t;
 typedef list<FDHistoryEntry> history_list_t;
 typedef list<Face>           face_list_t;
 
-history_list_t		gHistory;
+history_list_t	gHistory;
 fdthread_list_t gThreads;
+//threads which are still being worked on by CPU threads
+//       other than the main thread
 fdthread_list_t gThreads_beingSerialized;
-
-face_list_t         gFacesInCurrentFrame;
+face_list_t     gFacesInCurrentFrame;
 
 CRITICAL_SECTION gHistoryCS;
 CRITICAL_SECTION gThreadsCS;
@@ -354,21 +355,21 @@ list<Face>& FdProcessFaces(IplImage * pImg,CvSeq* pSeqIn){
 	//5. output
 	return gFacesInCurrentFrame;
 }
-//TODO - this looks wrong..
-void popAndCleanEmptyThreads(){
-	int count = (int)gThreads.size();
-	fdthread_list_t::iterator itr = gThreads.begin();
-	while(count > 0){
-		if ((int)itr->_pFaces.size() > FD_HISTORY_LENGTH)
-			itr->_pFaces.pop_front();
-
-		if(itr->_pFaces.empty()) //empty thread
-			gThreads.erase(itr++);
-		else
-			++itr;
-		count--;
-	}
-}
+////TODO - this looks wrong..
+//void popAndCleanEmptyThreads(){
+//	int count = (int)gThreads.size();
+//	fdthread_list_t::iterator itr = gThreads.begin();
+//	while(count > 0){
+//		if ((int)itr->_pFaces.size() > FD_HISTORY_LENGTH)
+//			itr->_pFaces.pop_front();
+//
+//		if(itr->_pFaces.empty()) //empty thread
+//			gThreads.erase(itr++);
+//		else
+//			++itr;
+//		count--;
+//	}
+//}
 
 FDFaceThread& addNewThread(){
 	static const FDFaceThread newThread;
@@ -667,14 +668,14 @@ void processThreads2(CvSeq* pInputFaces,frame_id_t frame_id){
 
 }
 
-
-void popHistory(){
-	ftracker(__FUNCTION__);
-	cvReleaseImage(&(gHistory.front().pFrame));
-	cvClearSeq(gHistory.front().pFacesSeq);
-	assert(!gHistory.empty());
-	gHistory.pop_front();
-}
+//
+//void popHistory(){
+//	ftracker(__FUNCTION__);
+//	cvReleaseImage(&(gHistory.front().pFrame));
+//	cvClearSeq(gHistory.front().pFacesSeq);
+//	assert(!gHistory.empty());
+//	gHistory.pop_front();
+//}
 
 FDHistoryEntry& addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id){
 	ftracker(__FUNCTION__,pImg,pSeqIn,frame_id);
