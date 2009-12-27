@@ -24,7 +24,7 @@ using namespace std;
 //#define OPENCV_ROOT  "D:\\Projects\\OpenCV\\latest_tested_snapshot\\opencv"
 #define OPENCV_ROOT  "G:\\projects\\OpenCV2.0"
 //
-#define HISTORY_LENGTH 10
+//#define HISTORY_LENGTH 10
 //A face must appear in at least this number of frames, to be considered "detected" (filtering)
 #define MIN_FACE_OCCURENCES_THRESH 2
 //#define MIN_FACE_OCCURENCES 2 5
@@ -56,7 +56,7 @@ public:
 
 
 //function tracking on?
-#define FTRACKING
+//#define FTRACKING
 
 class ftracker {
 private:
