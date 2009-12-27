@@ -19,7 +19,8 @@ face_list_t         gFacesInCurrentFrame;
 CRITICAL_SECTION gHistoryCS;
 CRITICAL_SECTION gThreadsCS;
 
-
+#define PRUNE_HISTORY_PRIORITY   THREAD_PRIORITY_BELOW_NORMAL
+#define SAVE_FACETHREAD_PRIORITY THREAD_PRIORITY_BELOW_NORMAL
 
 
 //CvSeq* gFacesCurrentFrameList = NULL; //faces above threshold in current frame
@@ -63,8 +64,9 @@ int FdInit(){
 		
 
 	cout << "CreateThread(..) for pruneHistory" << endl;
-	CreateThread(NULL,0,&pruneHistory,NULL //param
+	HANDLE h = CreateThread(NULL,0,&pruneHistory,NULL //param
 				 ,0,NULL);
+	SetThreadPriority(h,PRUNE_HISTORY_PRIORITY);
 
 
 
@@ -381,12 +383,16 @@ FDFaceThread& addNewThread(){
 void deleteThread(int index)
 {
 	EnterCriticalSection(&gThreadsCS);
+	//finding removed thread
 	fdthread_list_t::iterator  itr = gThreads.begin();
 	assert(index < (int)gThreads.size());
 	while(index--) ++itr;
-	assert(itr != gThreads.end());
+	assert(itr != gThreads.end()); //verify actually found
+	//allocate space in gThreads_beingSerialized, this FDFaceThread will be shortly deleted
 	gThreads_beingSerialized.push_back(FDFaceThread());
+	//Take processed thread out of gThreads and into gThreads_beingSerialized
 	swap(gThreads_beingSerialized.back(),*itr);
+	//Get rid of null FDFaceThread which was just created
 	gThreads.erase(itr);
 	LeaveCriticalSection(&gThreadsCS);
 	//lock not needed no more
@@ -398,8 +404,9 @@ void deleteThread(int index)
 
 	//NEW:
 	cout << "CreateThread(..) for saveAndDeleteThread" <<endl;
-	CreateThread(NULL,0,&saveAndDeleteThread,&gThreads_beingSerialized.back() //param
-				 ,0,NULL);
+	HANDLE h = CreateThread(NULL,0,&saveAndDeleteThread,&gThreads_beingSerialized.back() //param
+							,0,NULL);
+	SetPriorityClass(h,SAVE_FACETHREAD_PRIORITY);
 	//saveAndDeleteThread(&gThreads_beingSerialized.back());//(&(*itr));
 }
 
@@ -583,6 +590,7 @@ void processThreads2(CvSeq* pInputFaces,frame_id_t frame_id){
 
 		int i = 0;
 		for (fdthread_list_t::iterator thread_itr = gThreads.begin() ; thread_itr != gThreads.end() ; ++thread_itr, ++i)	{
+			//this face compared with last face in thread
 			float dist = getDistance(getRectCenter(*face_itr), getRectCenter(thread_itr->_pFaces.back()));
 			if (dist <= DIST_THRESHOLD) {
 				if (thInd == -1){ //face not matched yet
@@ -590,6 +598,7 @@ void processThreads2(CvSeq* pInputFaces,frame_id_t frame_id){
 					thInd = i;
 				} else if (dist < min_dist)  { //face matched, this one maybe better
 					if (min_dist < DIST_THRESHOLD/4  &&
+						//this face comapred with last face in thread vs. this face with previously matchesd candidate in the face
 						(getSizeDiff(*face_itr,thread_itr->_pFaces.back()) < getSizeDiff(*face_itr,matches[i].face))
 						)
 					{
