@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 * 
 * see also http://mysql.com/mysql_fetch_row 
 */ 
+//#include <crtdbg.h>
 
 #include "config-win.h" 
 
@@ -30,11 +31,18 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <list>
 #include <string>
 #include <vector>
+
+#include "ConfigIni.h"
 using namespace std;
 
-const char MEDIA_PATH[] = "D:\\Projects\\OpenCV\\media";
-const char FFMPEG_EXE_PATH[] = "D:\\Projects\\CITFFmpeg\\ffmpeg6\\ffmpeg.exe";
-const char FFMPEG_DIR[] = "D:\\Projects\\CITFFmpeg\\ffmpeg6";
+//const char sMediaPath[] = "D:\\Projects\\OpenCV\\media";
+//const char sFfmpegExePath[] = "D:\\Projects\\CITFFmpeg\\ffmpeg6\\ffmpeg.exe";
+//const char sFfmpegDir[] = "D:\\Projects\\CITFFmpeg\\ffmpeg6";
+const char CONFIG_FILE_NAME[] = "converter.ini";
+const char MEDIA_PATH[] = "mediapath";
+const char SECTION_CONFIG[] = "config";
+const char FFMPEG_DIR[] = "ffmegdir";
+
 
 typedef vector<string> StrList_t;
 typedef StrList_t::const_iterator StrListIter_t;
@@ -42,6 +50,9 @@ typedef StrList_t::const_iterator StrListIter_t;
 typedef list<StrList_t> RowsList_t;
 typedef RowsList_t::const_iterator RowsIter_t;
 
+string sMediaPath;
+string sFfmpegExePath = "";
+string sFfmpegDir = "";
 
 bool query(RowsList_t& rows,unsigned int &num_fields ){	
 
@@ -64,7 +75,7 @@ bool query(RowsList_t& rows,unsigned int &num_fields ){
 		CLIENT_FOUND_ROWS /* connection flags */ )) { 
 			puts("Connect failed\n"); 
 	} else {                 
-		if (mysql_query(mysql, "SELECT * FROM visuals ")) { 
+		if (mysql_query(mysql, "SELECT * FROM visuals WHERE mediasubtype=1 LIMIT 1")) { 
 			printf("Query failed: %s\n", mysql_error(mysql)); 
 			return false;
 		} else { 
@@ -171,8 +182,8 @@ bool query(RowsList_t& rows,unsigned int &num_fields ){
 //	//print($mediafile ." - ". file_exists( "D:\Projects\CITFFmpeg\ffmpeg6\ffmpeg.exe" ));	
 //	if (file_exists( $mediafile )){	
 //		print("file exists</br>");
-//		$ffmpeg_exe = FFMPEG_EXE_PATH;		
-//		$output_flv = LOCAL_MEDIA_PATH. "\\$outputname.flv";
+//		$ffmpeg_exe = sFfmpegExePath;		
+//		$output_flv = LOCAL_sMediaPath. "\\$outputname.flv";
 //		$cmd="$ffmpeg_exe -y -i \"$mediafile\" -f flv -an -vcodec flv -ar 44100 -s 360x288 \"$output_flv\"";
 //		print($cmd."</br>");
 //		$ret = shell_exec($cmd);
@@ -251,14 +262,14 @@ bool convert(const StrList_t& row){
 	printf("%s, ", row[2].c_str());
 
 	string mediaName = row[2].c_str();
-	string path = FFMPEG_EXE_PATH;	
+	string path = sFfmpegExePath;	
 
-	string sMediaFile = MEDIA_PATH;
+	string sMediaFile = sMediaPath;
 	sMediaFile += "\\";
 	sMediaFile += mediaName;
 	sMediaFile += ".avi";
 
-	string sOutput = MEDIA_PATH ;
+	string sOutput = sMediaPath ;
 	sOutput += "\\";
 	sOutput += mediaName ;
 	sOutput += ".flv";
@@ -273,7 +284,7 @@ bool convert(const StrList_t& row){
 
 	printf("parameters\n%s ",parameters.c_str());
 
-	string curDir = FFMPEG_DIR;
+	string curDir = sFfmpegDir;
 
 	ExecuteProcess(path, parameters,curDir, 100) ;
 
@@ -302,7 +313,6 @@ bool update(const StrList_t& row){
 			puts("Connect failed\n"); 
 	} else { 
 		MYSQL_STMT *stmt; 
-		char *query; 
 
 		stmt = mysql_stmt_init(mysql); 
 
@@ -339,20 +349,57 @@ bool update(const StrList_t& row){
 
 }
 
+bool initConfig(){
+	if (!getIniValue(CONFIG_FILE_NAME,
+					 SECTION_CONFIG,
+					 MEDIA_PATH,
+					 "",
+					 sMediaPath)){
+
+		printf("Can not find media directory configuration");
+		return false;
+	}
+	
+	if (!getIniValue(CONFIG_FILE_NAME,
+					 SECTION_CONFIG,
+					 FFMPEG_DIR,
+					 "",
+					 sFfmpegDir)){
+
+		printf("Can not find media directory configuration");
+		return false;
+	}
+	sFfmpegExePath = sFfmpegDir;
+	sFfmpegExePath += "\\ffmpeg.exe";
+	
+	return true;
+}
+
 int main(int argc, char **argv)  
 { 
 	RowsList_t rlist;
 	unsigned int num_fields;
-	query(rlist,num_fields);
+	if (!initConfig())
+		return -1;
+	while(true){
+		try{
+			query(rlist,num_fields);
+			
+			printf("Selected %d rows",rlist.size());
+			RowsIter_t rowIt = rlist.begin();
 
-	RowsIter_t rowIt = rlist.begin();
-
-	while(rowIt != rlist.end()){
-		if (convert(*rowIt)){
-			update(*rowIt);
+			while(rowIt != rlist.end()){
+				if (convert(*rowIt)){
+					update(*rowIt);
+				}
+				putchar('\n'); 
+				rowIt++;
+			}
+		}catch(...){
 		}
-		putchar('\n'); 
-		rowIt++;
+		rlist.clear();
+		Sleep(1000);
+
 	}
 
 	getchar();
