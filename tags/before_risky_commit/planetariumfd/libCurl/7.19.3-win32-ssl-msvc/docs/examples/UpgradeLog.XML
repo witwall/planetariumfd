@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type='text/xsl' href='_UpgradeReport_Files/UpgradeReport.xslt'?><UpgradeLog>
+<Properties><Property Name="Solution" Value="examples">
+</Property><Property Name="Solution File" Value="D:\Projects\OpenCV\planetariumFD_Yaniv\libCurl\7.19.3-win32-ssl-msvc\docs\examples\examples.sln">
+</Property><Property Name="Date" Value="Monday, December 28, 2009">
+</Property><Property Name="Time" Value="11:18:46 AM">
+</Property></Properties><Event ErrorLevel="2" Project="example1" Source="example1\example1.vcproj" Description="The following error has occurred during XML parsing:&#xA;&#xA;File: D:\Projects\OpenCV\planetariumFD_Yaniv\libCurl\7.19.3-win32-ssl-msvc\docs\examples\example1\example1.vcproj&#xA;Line: 10&#xA;Column: 2&#xA;Error Message:&#xA;'9.00' violates enumeration constraint of '7.00 7,00 7.10 7,10 8.00 8,00'.&#xA;The attribute 'Version' with value '9.00' failed to parse.&#xA;&#xA;The file 'D:\Projects\OpenCV\planetariumFD_Yaniv\libCurl\7.19.3-win32-ssl-msvc\docs\examples\example1\example1.vcproj' has failed to load.">
+</Event><Event ErrorLevel="2" Project="example1" Source="example1\example1.vcproj" Description="Project upgrade failed.">
+</Event><Event ErrorLevel="3" Project="example1" Source="example1\example1.vcproj" Description="Not Converted">
+</Event></UpgradeLog>

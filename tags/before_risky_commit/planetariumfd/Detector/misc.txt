@@ -1,0 +1,101 @@
+When a video is becoming too long, we can serialize it to disk once, but keep it alive with
+a wasSerialized flag on, so that it prevents this face to be video'd again.
+so 
+
+
+============
+How to get the frames in deleteThread?
+	Each face will have a pointer to a history entry
+	The history entry should have storage which is not copied when removed from history
+		as happens with cvSeq.
+		
+		build map<frame_id,FDHistoryEntry
+
+Handling missing frames
+
+
+
+
+
+
+
+
+Todo:
+
+1. Make configurable at runtime (so we can change params in the event, based on camera, lighting, mem available etc.)
+
+
+
+
+
+1.  How to save?
+save to named pipes, which are written to the net (no disk IO)
+save to files, write filenames to stdout
+rectangles are always square - do we want to mess with that (are they in the middle vertically?)
+
+How to select the best image in the sequence (thread?) 
+
+
+Video cropping
+
+Save min(x) max(x)
+	 min(y) max(y) 
+	 per thread, time begin, time end
+
+
+Multithreading
+
+deleteHistory:
+	if counter
+	
+add consecutive non missed count
+nisayon
+		result.rect.x = result.rect.y  = result.rect.width =  result.rect.height = -1; 
+
+-----------------------------
+
+
+FdProcessFaces
+	//not specific for 1 face..
+	addToHistory(pImg,pSeqIn);
+		createFrameCopy
+		cvCloneSeq
+		cvCreateHistoryEntry
+	if (full)
+		popHistory();
+		popAndCleanEmptyThreads();
+		
+		
+		
+------------------------------
+implementation 
+
+Main thread [high priority]				X 1   lives all the time
+Releasing history thread [low priority] X 1	  lives all the time
+Save-thread   X many						X N   per video being saved
+
+
+Main thread: detection + inits save threads + fills "to be released" queue
+	each history entry has a counter (mutex)
+	each thread increases the counter for the relevant history entry
+	when an entry is too old to be in the buffer, it is added to the to-be-released-queue, 
+		and the releasing thread is signaled.
+	when a face-thread ends, it opens a Save-cpu-thread which runs over it's frames 
+		in history (to create the video), and decreases the counter of each frame not needed anymore by this thread.
+		
+		
+		
+FaceThread
+	min X
+	max X
+	min Y
+	max Y
+	addCandidate
+	attachBestCandidate
+		addSubFrame()
+			update min/max etc.
+		LockFrame();
+		
+	~FaceThread() {
+		Serialize() if above threshold
+		ReleaseFrameLocks() &  // to another thread
