@@ -1,6 +1,0 @@
-VSWIZARD 7.0
-Wizard=VsWizard.VsWizardEngine.9.0
-
-Param="WIZARD_NAME = libcurl"
-Param="ABSOLUTE_PATH = D:\Projects\libCurl\7.19.3-win32-ssl-msvc\libcurl\libcurl"
-Param="FALLBACK_LCID = 1033"
