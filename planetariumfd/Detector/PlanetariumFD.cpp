@@ -2,7 +2,7 @@
 //
 
 #include "stdafx.h"
-#include "config.h"
+#include "fd_util.h"
 #include <climits>
 
 // for debugging:
@@ -31,17 +31,20 @@
 #include "camshift_wrapper.h"
 #include "FaceProcessor.h"
 
+//CV_FOURCC('F','L','V','1');
+#define				PFD_VIDEO_OUTPUT_FORMAT				   CV_FOURCC_DEFAULT 
+static const char * PFD_VIDEO_PLAYBACK_FILENAME			= "D:\\projects\\playback.avi";
+static const char * PFD_VIDEO_CROPPED_PLAYBACK_FILENAME = "D:\\projects\\cropped_playback.avi";
+const char * DISPLAY_WINDOW = "DisplayWindow";
 
 void blabla();
 //// Constants
-const char * DISPLAY_WINDOW = "DisplayWindow";
 
 
-#define CROP_PLAYBACK_FACE
 
 
 //// Global variables
-IplImage  * pVideoFrameCopy = 0;
+IplImage  * pfd_pVideoFrameCopy = 0;
 
 
 //// Function definitions
@@ -59,14 +62,11 @@ CvScalar colorArr[3]= {CV_RGB(255,0,0),
 
 
 
-
 //////////////////////////////////
 // main()
 //
 int _tmain(int argc, _TCHAR* argv[])
 {
-//	blabla();
-//	Sleep(120000);
 
 	if( !initAll() ) 
 		exitProgram(-1);
@@ -79,7 +79,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		//Retrieve next image and 
 		// Look for a face in the next video frame
 		
-		//read into pVideoFrameCopy
+		//read into pfd_pVideoFrameCopy
 		if (!captureVideoFrame()){
 			if (frame_count==0)
 				throw exception("Failed before reading anything");
@@ -88,11 +88,11 @@ int _tmain(int argc, _TCHAR* argv[])
 		++frame_count;
 
 		CvSeq* pSeq = 0;
-		/*int count = */detectFaces(pVideoFrameCopy,&pSeq);
+		/*int count = */detectFaces(pfd_pVideoFrameCopy,&pSeq);
 		
 		//Do some filtration of pSeq into pSeqOut, based on history etc,
 		//update data structures (history ,face threads etc.)s
-		list<Face> & faces_in_this_frame = FdProcessFaces(pVideoFrameCopy,pSeq);
+		list<Face> & faces_in_this_frame = FdProcessFaces(pfd_pVideoFrameCopy,pSeq);
 
 		//== draw rectrangle for each detected face ==
 		if (!faces_in_this_frame.empty()){	//faces detected (??)
@@ -102,22 +102,22 @@ int _tmain(int argc, _TCHAR* argv[])
 				CvPoint pt1 = cvPoint(face_itr->x,face_itr->y);
 				CvPoint pt2 = cvPoint(face_itr->x + face_itr->width,face_itr->y + face_itr->height);
 				if (face_itr->frame_id == frame_count) //detected for this frame
-					cvRectangle( pVideoFrameCopy, pt1, pt2, colorArr[i++%3],3,8,0);
+					cvRectangle( pfd_pVideoFrameCopy, pt1, pt2, colorArr[i++%3],3,8,0);
 				else //from a previous frame
-					cvRectangle( pVideoFrameCopy, pt1, pt2, colorArr[i++%3],1,4,0);
+					cvRectangle( pfd_pVideoFrameCopy, pt1, pt2, colorArr[i++%3],1,4,0);
 			}
 		}else{ //no faces detected
 			Sleep(100);
 		}
 		//{
-		//	IplImage * pImage = cvCreateImage(cvSize(500,500),pVideoFrameCopy->depth,pVideoFrameCopy->nChannels);
-		//	cvResize(pVideoFrameCopy,pImage);
+		//	IplImage * pImage = cvCreateImage(cvSize(500,500),pfd_pVideoFrameCopy->depth,pfd_pVideoFrameCopy->nChannels);
+		//	cvResize(pfd_pVideoFrameCopy,pImage);
 		//	cvShowImage( DISPLAY_WINDOW, pImage );
 		//	cvReleaseImage(&pImage);
 		//}
-		cvShowImage( DISPLAY_WINDOW, pVideoFrameCopy );
+		cvShowImage( DISPLAY_WINDOW, pfd_pVideoFrameCopy );
 
-		cvReleaseImage(&pVideoFrameCopy);
+		cvReleaseImage(&pfd_pVideoFrameCopy);
 	
 	} //end input while
 
@@ -135,11 +135,11 @@ int _tmain(int argc, _TCHAR* argv[])
 	
 	//== VIDEO WRITER START =====================
 	int isColor = 1;
-	int fps     = 30;//25;  // or 30
+	int fps     = 12;//30;//25;  // or 30
 	int frameW  = 640; // 744 for firewire cameras
 	int frameH  = 480; // 480 for firewire cameras
-	CvVideoWriter * playbackVidWriter=cvCreateVideoWriter(VIDEO_PLAYBACK_FILENAME,
-								VIDEO_OUTPUT_FORMAT,
+	CvVideoWriter * playbackVidWriter=cvCreateVideoWriter(PFD_VIDEO_PLAYBACK_FILENAME,
+								PFD_VIDEO_OUTPUT_FORMAT,
 							   fps,cvSize(frameW,frameH),isColor);
 	CvVideoWriter *  croppedVidWriter = 0;
 	if (!playbackVidWriter) {
@@ -190,8 +190,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	{
 		cout << ++k << endl;
 		//cvResetImageROI(history_itr->pFrame);  //now reset by FDFaceThread
-		pVideoFrameCopy = cvCreateImage( cvGetSize(itr->pFrame ), 8, 3 ); //TODO query image for its properties
-		cvCopy( itr->pFrame , pVideoFrameCopy, 0 );
+		pfd_pVideoFrameCopy = cvCreateImage( cvGetSize(itr->pFrame ), 8, 3 ); //TODO query image for its properties
+		cvCopy( itr->pFrame , pfd_pVideoFrameCopy, 0 );
 		CvSeq* pFacesSeq = itr->pFacesSeq;
 
 		for(int i = 0 ;i < pFacesSeq->total ;i++){				
@@ -200,9 +200,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			CvPoint pt1 = cvPoint(pFaceRect->x,pFaceRect->y);
 			CvPoint pt2 = cvPoint(pFaceRect->x + pFaceRect->width,pFaceRect->y + pFaceRect->height);
 			if (itr->frame_id == pFaceRect->frame_id)
-				cvRectangle( pVideoFrameCopy, pt1, pt2,	 colorArr[i%3],3,8,0);
+				cvRectangle( pfd_pVideoFrameCopy, pt1, pt2,	 colorArr[i%3],3,8,0);
 			else
-				cvRectangle( pVideoFrameCopy, pt1, pt2, colorArr[i%3],1,4,0);
+				cvRectangle( pfd_pVideoFrameCopy, pt1, pt2, colorArr[i%3],1,4,0);
 		}
 
 		if (pFacesSeq->total > 0) 
@@ -210,28 +210,28 @@ int _tmain(int argc, _TCHAR* argv[])
 			assert(found);
 			//write 1st sequence if exists to cropped vid
 			if (!croppedVidWriter)
-				croppedVidWriter=cvCreateVideoWriter(VIDEO_CROPPED_PLAYBACK_FILENAME,
-									VIDEO_OUTPUT_FORMAT,
+				croppedVidWriter=cvCreateVideoWriter(PFD_VIDEO_CROPPED_PLAYBACK_FILENAME,
+									PFD_VIDEO_OUTPUT_FORMAT,
 	 						   fps,cvSize(max_x-min_x,max_y-min_y),isColor);
 			assert(croppedVidWriter);
 
 
-			cvResetImageROI(pVideoFrameCopy);
-			cvSetImageROI(pVideoFrameCopy,consensus_rect);
+			cvResetImageROI(pfd_pVideoFrameCopy);
+			cvSetImageROI(pfd_pVideoFrameCopy,consensus_rect);
 			//write cropped image to video file
-			IplImage *croppedImg = cvCreateImage(cvGetSize(pVideoFrameCopy),
-								   pVideoFrameCopy->depth,
-								   pVideoFrameCopy->nChannels);	
+			IplImage *croppedImg = cvCreateImage(cvGetSize(pfd_pVideoFrameCopy),
+								   pfd_pVideoFrameCopy->depth,
+								   pfd_pVideoFrameCopy->nChannels);	
 			assert(croppedImg);
-			cvCopy(pVideoFrameCopy, croppedImg, NULL);
+			cvCopy(pfd_pVideoFrameCopy, croppedImg, NULL);
 			assert(croppedVidWriter);
 			cvWriteFrame(croppedVidWriter,croppedImg);
 			cvReleaseImage(&croppedImg);
 		}
 
-		cvShowImage( DISPLAY_WINDOW, pVideoFrameCopy );
-		cvResetImageROI(pVideoFrameCopy); //CROP_PLAYBACK_FACE
-		cvWriteFrame(playbackVidWriter,pVideoFrameCopy);
+		cvShowImage( DISPLAY_WINDOW, pfd_pVideoFrameCopy );
+		cvResetImageROI(pfd_pVideoFrameCopy); //CROP_PLAYBACK_FACE
+		cvWriteFrame(playbackVidWriter,pfd_pVideoFrameCopy);
 		if( (char)27==cvWaitKey(1) ) break;//exitProgram(0);
 		Sleep(50);	
 		++playback_counter;	
@@ -246,7 +246,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	//-----------------------------------------------------------
 }
 
-
+const string OPENCV_ROOT = "D:\\Projects\\OpenCV\\latest_tested_snapshot\\opencv";
 //////////////////////////////////
 // initAll()
 //
@@ -258,8 +258,7 @@ int initAll()
 	if( !initCapture(cc == 'Y' || cc == 'y') ) 
 		return 0;
 
-	if( !initFaceDet(OPENCV_ROOT
-		"/data/haarcascades/haarcascade_frontalface_default.xml"))
+	if( !initFaceDet((OPENCV_ROOT + "/data/haarcascades/haarcascade_frontalface_default.xml").c_str()))
 		return 0;
 
 	// Startup message tells user how to begin and how to exit
@@ -275,7 +274,7 @@ int initAll()
 
 	// Initialize tracker
 	captureVideoFrame();
-	if( !createTracker(pVideoFrameCopy) ) return 0;
+	if( !createTracker(pfd_pVideoFrameCopy) ) return 0;
 
 	// Set Camshift parameters
 	setVmin(60);
@@ -294,7 +293,7 @@ void exitProgram(int code)
 {
 	// Release resources allocated in this file
 	cvDestroyWindow( DISPLAY_WINDOW );
-	cvReleaseImage( &pVideoFrameCopy );
+	cvReleaseImage( &pfd_pVideoFrameCopy );
 
 	// Release resources allocated in other project files
 	closeCapture();
@@ -316,15 +315,15 @@ bool captureVideoFrame()
 		return false;	
 	
 	// Copy it to the display image, inverting it if needed
-	if( !pVideoFrameCopy )
-		pVideoFrameCopy = cvCreateImage( cvGetSize(pVideoFrame), 8, 3 );
-	cvCopy( pVideoFrame, pVideoFrameCopy, 0 );
-	pVideoFrameCopy->origin = pVideoFrame->origin;
+	if( !pfd_pVideoFrameCopy )
+		pfd_pVideoFrameCopy = cvCreateImage( cvGetSize(pVideoFrame), 8, 3 );
+	cvCopy( pVideoFrame, pfd_pVideoFrameCopy, 0 );
+	pfd_pVideoFrameCopy->origin = pVideoFrame->origin;
 
-	if( 1 == pVideoFrameCopy->origin ) // 1 means the image is inverted
+	if( 1 == pfd_pVideoFrameCopy->origin ) // 1 means the image is inverted
 	{
-		cvFlip( pVideoFrameCopy, 0, 0 );
-		pVideoFrameCopy->origin = 0;
+		cvFlip( pfd_pVideoFrameCopy, 0, 0 );
+		pfd_pVideoFrameCopy->origin = 0;
 	}
 	return true;
 }

@@ -10,32 +10,6 @@ using namespace std;
 #include "cv.h"
 #include "highgui.h"
 
-// =====================================================
-// ============== Configurable Constants  ==============
-// =====================================================
-
-#define FD_HISTORY_LENGTH 50  
-#define MAX_ALLOWED_MISSED_COUNT 10
-#define MAX_ALLOWED_CONSECUTIVE_MISSES 3
-
-#define DIST_THRESHOLD 100
-//TODO ADD FLOAT VERY CLOSE DIST THRESH
-
-//#define OPENCV_ROOT  "D:\\Projects\\OpenCV\\latest_tested_snapshot\\opencv"
-#define OPENCV_ROOT  "G:\\projects\\OpenCV2.0"
-//
-//#define HISTORY_LENGTH 10
-//A face must appear in at least this number of frames, to be considered "detected" (filtering)
-#define MIN_FACE_OCCURENCES_THRESH 2
-//#define MIN_FACE_OCCURENCES 2 5
-
-const int VIDEO_OUTPUT_FORMAT = CV_FOURCC_DEFAULT; //CV_FOURCC('F','L','V','1');
-static const char * VIDEO_PLAYBACK_FILENAME = "G:\\projects\\playback.avi";
-static const char * VIDEO_CROPPED_PLAYBACK_FILENAME = "G:\\projects\\cropped_playback.avi";
-
-//YL - size limitation for video..
-//#define MAX_FRAMES_PER_THREAD (FD_HISTORY_LENGTH-1)
-
 
 // =====================================================
 // ============== Auxilaries              ==============

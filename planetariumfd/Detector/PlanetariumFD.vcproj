@@ -27,7 +27,7 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
-				CommandLine="rem copy D:\Projects\OpenCV_CMAKE_BIN\bin\debug\*.dll $(OutDir)&#x0D;&#x0A;"
+				CommandLine="copy &quot;..\libCurl\7.19.3-win32-ssl-msvc\src\DLL-$(ConfigurationName)\*.*&quot;  $(OutDir)&#x0D;&#x0A;rem copy D:\Projects\OpenCV_CMAKE_BIN\bin\debug\*.dll $(OutDir)&#x0D;&#x0A;rem copy ..\\libCurl\7.19.3-win32-ssl-msvc\lib\debug\*.dll  $(OutDir)&#x0D;&#x0A;"
 				Outputs="$(OutDir)"
 			/>
 			<Tool
@@ -42,7 +42,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="G:\projects\opencv_src\include\opencv;G:\projects\boost\boost_1_40"
+				AdditionalIncludeDirectories="D:\Projects\OpenCV\latest_tested_snapshot\opencv\include\opencv;&quot;D:\Projects\OpenCV\planetariumFD_Yaniv\libCurl\7.19.3-win32-ssl-msvc\include&quot;;D:\Projects\OpenCV\planetariumFD_Yaniv\include"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -63,9 +63,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="G:\projects\opencv_src\lib\debug\cv200d.lib G:\projects\opencv_src\lib\debug\cxcore200d.lib G:\projects\opencv_src\lib\debug\highgui200d.lib"
+				AdditionalDependencies="cv200d.lib cxcore200d.lib highgui200d.lib curllib.lib commonlib.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="G:\projects\boost\boost_1_40\lib;G:\projects\OpenCV2.0\bin;G:\projects\OpenCV2.0\lib;D:\Projects\OpenCV_CMAKE_BIN\lib\debug"
+				AdditionalLibraryDirectories="&quot;..\CommonLib\$(ConfigurationName)&quot;;&quot;D:\Projects\OpenCV\planetariumFD_Yaniv\libCurl\7.19.3-win32-ssl-msvc\lib\debug&quot;;D:\Projects\OpenCV_CMAKE_BIN\lib\debug"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -108,6 +108,7 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
+				CommandLine="copy ..\\libCurl\7.19.3-win32-ssl-msvc\lib\release\*.dll  $(OutDir)"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -120,7 +121,7 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalIncludeDirectories="G:\projects\opencv_src\include\opencv;G:\projects\boost\boost_1_40"
+				AdditionalIncludeDirectories="D:\Projects\OpenCV\latest_tested_snapshot\opencv\include\opencv;&quot;D:\Projects\OpenCV\planetariumFD_Yaniv\libCurl\7.19.3-win32-ssl-msvc\include&quot;;D:\Projects\OpenCV\planetariumFD_Yaniv\include"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
@@ -141,7 +142,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="G:\projects\opencv_src\lib\release\cv200.lib G:\projects\opencv_src\lib\release\cxcore200.lib G:\projects\opencv_src\lib\release\highgui200.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="G:\projects\boost\boost_1_40\lib;G:\projects\OpenCV2.0\bin;G:\projects\OpenCV2.0\lib;D:\Projects\OpenCV_CMAKE_BIN\lib\debug"
+				AdditionalLibraryDirectories="D:\Projects\OpenCV_CMAKE_BIN\lib\debug"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -207,7 +208,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\sample2.cpp"
+				RelativePath=".\RegisterOutput.cpp"
 				>
 			</File>
 			<File
@@ -229,15 +230,19 @@
 				>
 			</File>
 			<File
-				RelativePath=".\config.h"
-				>
-			</File>
-			<File
 				RelativePath=".\facedet.h"
 				>
 			</File>
 			<File
 				RelativePath=".\FaceProcessor.h"
+				>
+			</File>
+			<File
+				RelativePath=".\fd_util.h"
+				>
+			</File>
+			<File
+				RelativePath=".\RegisterOutput.h"
 				>
 			</File>
 			<File
@@ -259,6 +264,10 @@
 				>
 			</File>
 		</Filter>
+		<File
+			RelativePath=".\face_22detect.ini"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>
