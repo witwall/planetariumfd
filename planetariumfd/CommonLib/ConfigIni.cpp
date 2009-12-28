@@ -71,7 +71,7 @@ bool getIniValue(string filename,string section,string key,string defultValue,st
 						  defultValue.c_str(),
 						  lpBuffer,
 						  PATH_BUFFER_LENGTH,
-						  filename.c_str()
+						  path.c_str()
 						);
 
 	if (!nBufferLength) return false;

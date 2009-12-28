@@ -25,8 +25,7 @@ CRITICAL_SECTION gHistoryCS;
 CRITICAL_SECTION gThreadsCS;
 
 #define PRUNE_HISTORY_PRIORITY   THREAD_PRIORITY_BELOW_NORMAL
-#define SAVE_FACETHREAD_PRIORITY THREAD_PRIORITY_BELOW_NORMAL
-
+#define SAVE_FACETHREAD_PRIORITY THREAD_PRIORITY_LOWEST
 
 //CvSeq* gFacesCurrentFrameList = NULL; //faces above threshold in current frame
 
@@ -126,7 +125,7 @@ int FdInit(){
 		
 	date_and_time2string(base_ofilename);
 
-	cout << "CreateThread(..) for pruneHistory" << endl;
+	////cout << "CreateThread(..) for pruneHistory" << endl;
 	HANDLE h = CreateThread(NULL,0,&pruneHistory,NULL //param
 				 ,0,NULL);
 	assert(h);
@@ -367,7 +366,7 @@ void deleteThread(fdthread_list_t::iterator & itr_to_del)
 		LeaveCriticalSection(&gThreadsCS);	
 	}
 
-	cout << "CreateThread(..) for saveAndDeleteThread" <<endl;
+	////cout << "CreateThread(..) for saveAndDeleteThread" <<endl;
 	HANDLE h = CreateThread(NULL,0,&saveAndDeleteThread,beingSaved //param
 							,0,NULL);
 	assert(h);
@@ -536,7 +535,7 @@ void processThreads2(CvSeq* pInputFaces,frame_id_t frame_id){
 //}
 
 FDHistoryEntry& addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id){
-	ftracker(__FUNCTION__,pImg,pSeqIn,frame_id);
+	//ftracker(__FUNCTION__,pImg,pSeqIn,frame_id);
 	IplImage * pVideoFrameCopy = createFrameCopy(pImg);	
 	CvSeq* pCopyInSeq = cvCloneSeq( pSeqIn , pHistoryStorage );
 	
@@ -588,7 +587,7 @@ frame_id_t getMinFrameToKeep() {
 	frame_id_t min_frame_id = INT_MAX;
 	for(fdthread_list_t::iterator itr = gThreads.begin()  ; itr != gThreads.end() ; ++itr)
 	{
-		cout << "-0--> " << itr->_pFaces.front().frame_id << " -- " << min_frame_id << endl;
+//		cout << "-0--> " << itr->_pFaces.front().frame_id << " -- " << min_frame_id << endl;
 		assert(!itr->_pFaces.empty());
 		//assert(Face is valid) //TODo
 		if (itr->_pFaces.front().frame_id < min_frame_id)
@@ -596,7 +595,7 @@ frame_id_t getMinFrameToKeep() {
 	}
 	for(fdthread_list_t::iterator itr = gThreads_beingSerialized.begin()  ; itr != gThreads_beingSerialized.end() ; ++itr)
 	{
-		cout << "-1--> " << itr->_pFaces.front().frame_id << " -- " << min_frame_id << endl;
+//		cout << "-1--> " << itr->_pFaces.front().frame_id << " -- " << min_frame_id << endl;
 		assert(!itr->_pFaces.empty());
 		//assert(Face is valid) //TODo
 		if (itr->_pFaces.front().frame_id < min_frame_id)
@@ -608,7 +607,7 @@ frame_id_t getMinFrameToKeep() {
 
 void deallocHistoryEntry(FDHistoryEntry & h){
 	ftracker(__FUNCTION__);
-	cout << "{releasing" << h.frame_id << "}" << endl;
+	////cout << "{releasing" << h.frame_id << "}" << endl;
 	//TODO - Do we want to lock opencv for this?
 	cvReleaseImage(&(h.pFrame));
 	h.pFrame = NULL;
@@ -639,7 +638,7 @@ DWORD WINAPI pruneHistory(LPVOID param){
 		assert(itr != gHistory.end());
 		if (minFrameToKeep == -1) 
 			minFrameToKeep = INT_MAX; //erase it all...
-		cout << "[mftp= " << minFrameToKeep << ']' << endl;
+		////cout << "[mftp= " << minFrameToKeep << ']' << endl;
 		while(itr->frame_id < minFrameToKeep && list_size > MIN_LIST_SIZE )
 		{
 			//TODO
@@ -649,9 +648,9 @@ DWORD WINAPI pruneHistory(LPVOID param){
 			list_size = gHistory.size();
 			LeaveCriticalSection(&gHistoryCS);
 		}
-		cout << " ===== Sleeping ==== " << endl;
+		////cout << " ===== Sleeping ==== " << endl;
 		Sleep(PRUNE_HISTORY_EVERY_MS);
-		cout << " ===== Woke up ==== " << endl;
+		////cout << " ===== Woke up ==== " << endl;
 		//size might have grown while sleeping..
 		EnterCriticalSection(&gHistoryCS);
 		list_size = gHistory.size();
@@ -674,12 +673,15 @@ DWORD WINAPI pruneHistory(LPVOID param){
 //param is a Thread * 
 DWORD WINAPI saveAndDeleteThread(LPVOID param) {
 	ftracker(__FUNCTION__,param,'x');
-	cout << "thread " << GetCurrentThreadId() << " has started (" << __FUNCTION__ << ")" << endl;
+	////cout << "thread " << GetCurrentThreadId() << " has started (" << __FUNCTION__ << ")" << endl;
 
 	FDFaceThread * pTh  = (FDFaceThread *) param;
 	assert(pTh);	
-	//pTh->pruneFacesList();
-	pTh->serializeToLog(cout);
+	EnterCriticalSection(&gThreadsCS);
+	pTh->pruneFacesList();
+	LeaveCriticalSection(&gThreadsCS);
+	
+	////pTh->serializeToLog(cout);
 	
 	{	//saving one image and notifying server
 		string oFilename;
@@ -715,11 +717,11 @@ DWORD WINAPI saveAndDeleteThread(LPVOID param) {
 	for (fdthread_list_t::iterator itr = gThreads_beingSerialized.begin() ; itr != gThreads_beingSerialized.end() ; ++itr) {
 		if (&(*itr) == pTh){
 			cs_locker locker(&gThreadsCS); // do not erase while pruneHistory is looking at it..
-			cout << "Release thread from gThreads_beingSerialized after saving it " 
-				<< ( (itr->_pFaces.empty()) ? 0 :   itr->_pFaces.front().frame_id)<< endl;
+			////cout << "Release thread from gThreads_beingSerialized after saving it " 
+			////	<< ( (itr->_pFaces.empty()) ? 0 :   itr->_pFaces.front().frame_id)<< endl;
 			gThreads_beingSerialized.erase(itr);
 			pTh = NULL; //gThreads.erase made pointer point at destructed Thread obj
-			cout << "thread " << GetCurrentThreadId() << " has finished (" << __FUNCTION__ << ")" << endl;
+			////cout << "thread " << GetCurrentThreadId() << " has finished (" << __FUNCTION__ << ")" << endl;
 			return 0;
 		}
 	}
@@ -823,33 +825,34 @@ bool saveThreadImages(FDFaceThread & thread,string & outputFilename)
 		} else {
 			assert(history_itr->frame_id == faces_itr->frame_id);
 			ostringstream filename;
-			filename << "planetarium_image__" << base_ofilename << "__" << my_series_num << "_" << image_num << ".jpg";
+			filename /*<< "planetarium_image__" */<< base_ofilename << "__" << my_series_num << "_" << image_num << ".jpg";
 			string filename_with_path = oPath + "\\" + filename.str() ;
-			cout << "< saving image " << history_itr->frame_id << ">" << endl;
+			////cout << "< saving image " << history_itr->frame_id << ">" << endl;
 			
 			EnterCriticalSection(&gHistoryCS);
 			cvResetImageROI(history_itr->pFrame); 
 			cvSetImageROI(history_itr->pFrame,*faces_itr);
 			bool wasSucces = false;//cvSaveImage(filename_with_path.c_str(),history_itr->pFrame);
+			cvResetImageROI(history_itr->pFrame); 
 			LeaveCriticalSection(&gHistoryCS);
-			
+			Sleep(30);
 			if (!wasSucces)
-				cerr << "Couldn't save image " << filename_with_path << endl;
+;////				cerr << "Couldn't save image " << filename_with_path << endl;
 			else {
 				//for now, exit after first image is written
 				outputFilename = filename.str();
 				return true;
 			}
 
-			cvResetImageROI(history_itr->pFrame); 
+			
 			++faces_itr;
 		}
 		++history_itr;
 	}
-	cout << "< fin saving >" << endl;
+	////cout << "< fin saving >" << endl;
 	return true;
 }
-#define VIDEO_SIZE 100
+#define VIDEO_SIZE 200
 #define MIN_FRAMES_FOR_VIDEO 50
 bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 {
@@ -857,7 +860,7 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 		return false;
 	long my_series_num = ++image_series_cnt; //multi-threading kind of more protection
 
-	cout << "Going to save video with a total of " << thread._pFaces.size() << " frames" <<endl;
+	////cout << "Going to save video with a total of " << thread._pFaces.size() << " frames" <<endl;
 
 	
 	if (thread._pFaces.empty())
@@ -881,7 +884,7 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 	assert(history_itr->frame_id == faces_itr->frame_id);
 
 	ostringstream filename;
-	filename << "planetarium_video__" << base_ofilename << "__" << my_series_num << ".avi";
+	filename /*<< "planetarium_video__"*/ << base_ofilename << "__" << my_series_num << ".avi";
 	string filename_with_path = oPath + "\\" + filename.str();
 	
 	IplImage * pImage = cvCreateImage(cvSize(VIDEO_SIZE,VIDEO_SIZE),history_itr->pFrame->depth,
@@ -907,7 +910,7 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 		} else {
 			assert(history_itr->frame_id == faces_itr->frame_id);
 
-			cout << "< will save vid image " << history_itr->frame_id << ">" << endl;
+			////cout << "< will save vid image " << history_itr->frame_id << ">" << endl;
 			//copy and resize while locking all frames
 			EnterCriticalSection(&gHistoryCS);
 			cvResetImageROI(history_itr->pFrame); 
@@ -915,7 +918,7 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 			cvResize(history_itr->pFrame,pImage);
 			cvSetImageROI(history_itr->pFrame,*faces_itr);			
 			LeaveCriticalSection(&gHistoryCS);
-
+			Sleep(30);
 			cvWriteFrame(vid_writer,pImage);
 			
 
@@ -929,7 +932,7 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 	cvReleaseVideoWriter(&vid_writer);
 	cvReleaseImage(&pImage);
 
-	cout << "< fin vid saving " << filename_with_path << " >" << endl;
+	////cout << "< fin vid saving " << filename_with_path << " >" << endl;
 
 	outputFilename = filename.str();
 	return true;

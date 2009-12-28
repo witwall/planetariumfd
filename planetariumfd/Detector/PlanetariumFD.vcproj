@@ -27,7 +27,7 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
-				CommandLine="copy &quot;..\libCurl\7.19.3-win32-ssl-msvc\src\DLL-$(ConfigurationName)\*.*&quot;  $(OutDir)&#x0D;&#x0A;rem copy D:\Projects\OpenCV_CMAKE_BIN\bin\debug\*.dll $(OutDir)&#x0D;&#x0A;rem copy ..\\libCurl\7.19.3-win32-ssl-msvc\lib\debug\*.dll  $(OutDir)&#x0D;&#x0A;"
+				CommandLine="copy &quot;..\libCurl\7.19.3-win32-ssl-msvc\src\DLL-$(ConfigurationName)\*.dll&quot;  $(OutDir)&#x0D;&#x0A;copy &quot;..\\libCurl\7.19.3-win32-ssl-msvc\openLDAP.dll&quot;  $(OutDir)&#x0D;&#x0A;rem copy D:\Projects\OpenCV_CMAKE_BIN\bin\debug\*.dll $(OutDir)&#x0D;&#x0A;rem copy ..\\libCurl\7.19.3-win32-ssl-msvc\lib\debug\*.dll  $(OutDir)&#x0D;&#x0A;"
 				Outputs="$(OutDir)"
 			/>
 			<Tool
@@ -63,9 +63,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="cv200d.lib cxcore200d.lib highgui200d.lib curllib.lib commonlib.lib"
+				AdditionalDependencies="cv200d.lib cxcore200d.lib highgui200d.lib commonlib.lib curllib.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="&quot;..\CommonLib\$(ConfigurationName)&quot;;&quot;D:\Projects\OpenCV\planetariumFD_Yaniv\libCurl\7.19.3-win32-ssl-msvc\lib\debug&quot;;D:\Projects\OpenCV_CMAKE_BIN\lib\debug"
+				AdditionalLibraryDirectories="&quot;..\CommonLib\$(ConfigurationName)&quot;;&quot;..\libCurl\7.19.3-win32-ssl-msvc\lib\$(ConfigurationName)&quot;;&quot;D:\Projects\OpenCV_CMAKE_BIN\lib\$(ConfigurationName)&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -108,7 +108,8 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
-				CommandLine="copy ..\\libCurl\7.19.3-win32-ssl-msvc\lib\release\*.dll  $(OutDir)"
+				CommandLine="copy &quot;..\\libCurl\7.19.3-win32-ssl-msvc\lib\release\*.dll&quot;  $(OutDir)&#x0D;&#x0A;copy &quot;..\\libCurl\7.19.3-win32-ssl-msvc\openLDAP.dll&quot;  $(OutDir)&#x0D;&#x0A;"
+				Outputs="$(OutDir)"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -123,7 +124,7 @@
 				Name="VCCLCompilerTool"
 				AdditionalIncludeDirectories="D:\Projects\OpenCV\latest_tested_snapshot\opencv\include\opencv;&quot;D:\Projects\OpenCV\planetariumFD_Yaniv\libCurl\7.19.3-win32-ssl-msvc\include&quot;;D:\Projects\OpenCV\planetariumFD_Yaniv\include"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
-				RuntimeLibrary="2"
+				RuntimeLibrary="0"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
@@ -140,9 +141,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="G:\projects\opencv_src\lib\release\cv200.lib G:\projects\opencv_src\lib\release\cxcore200.lib G:\projects\opencv_src\lib\release\highgui200.lib"
+				AdditionalDependencies="cv200.lib cxcore200.lib highgui200.lib commonlib.lib  curllib.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="D:\Projects\OpenCV_CMAKE_BIN\lib\debug"
+				AdditionalLibraryDirectories="&quot;..\CommonLib\$(ConfigurationName)&quot;;&quot;..\libCurl\7.19.3-win32-ssl-msvc\lib\$(ConfigurationName)&quot;;&quot;D:\Projects\OpenCV_CMAKE_BIN\lib\$(ConfigurationName)&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
