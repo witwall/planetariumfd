@@ -41,7 +41,7 @@ struct FDFaceThread {
 	//TODO 
 	//mutex _pFacesMutex;
 	list<Face> _pFaces;
-	CvSeq* pCandidates; // Candidates to be next face
+	//CvSeq* pCandidates; // Candidates to be next face
 	//list<Face> _pCandidates;  // Candidates to be next face
 
 	int totalCount;
@@ -53,7 +53,7 @@ struct FDFaceThread {
 	int numRequiredFrames();
 	void serializeToLog(ostream & o = cout);
 	void pruneFacesList();
-	FDFaceThread() : pCandidates(NULL), totalCount(0) , missedCount(0) , nonMissedCount(0), consecutiveMissedCount(0) {}
+	FDFaceThread() :  totalCount(0) , missedCount(0) , nonMissedCount(0), consecutiveMissedCount(0) {}
 	~FDFaceThread() {
 		//serializeToLog(cout);
 	}
