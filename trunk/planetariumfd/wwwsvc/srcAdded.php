@@ -19,7 +19,7 @@
 				"in " . QS_PARAMETER_MEDIA_TYPE . " parameter"));
 		exit(0);		
 	}
-	$mediasubtype=getQSMediaSubType(MEDIASUBTYPE_FLV);
+	$mediasubtype=getQSMediaSubType(MEDIASUBTYPE_AVI);
 	$additionaldata="";
 					
 	mysql_connect($host,$username,$password) or die(mysql_error());

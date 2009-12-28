@@ -5,7 +5,7 @@
 	$mediatype=getQSMediaType(MEDIATYPE_VIDEO);
 		
 	if($mediatype!=MEDIATYPE_UNRECOGNIZED) {
-		$mediasubtype = getQSMediaType(MEDIASUBTYPE_FLV);		
+		$mediasubtype = getQSMediaSubType(MEDIASUBTYPE_FLV);		
 	}else {
 		print(createErrorXml( "Unrecognized value " . $_GET[QS_PARAMETER_NAME_MEDIA_TYPE] . 
 				"in " . QS_PARAMETER_MEDIA_TYPE . " parameter"));
