@@ -109,7 +109,14 @@ int _tmain(int argc, _TCHAR* argv[])
 		}else{ //no faces detected
 			Sleep(100);
 		}
+		//{
+		//	IplImage * pImage = cvCreateImage(cvSize(500,500),pVideoFrameCopy->depth,pVideoFrameCopy->nChannels);
+		//	cvResize(pVideoFrameCopy,pImage);
+		//	cvShowImage( DISPLAY_WINDOW, pImage );
+		//	cvReleaseImage(&pImage);
+		//}
 		cvShowImage( DISPLAY_WINDOW, pVideoFrameCopy );
+
 		cvReleaseImage(&pVideoFrameCopy);
 	
 	} //end input while
