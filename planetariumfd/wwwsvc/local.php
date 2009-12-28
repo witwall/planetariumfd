@@ -40,29 +40,52 @@ function getQSMediaType($default){
 }
 
 function getQSMediaSubType($default){
-	$mediasubtype=$default;
-	$mediatype=getQSMediaType("");
-	print("mediatype $mediatype  default $default</br>");	
-	switch ($mediatype) {
-		case MEDIATYPE_VIDEO:
-			$mediasubtype=MEDIASUBTYPE_FLV;
-			print("MEDIATYPE_VIDEO </br>");
-		;
-		break;
-		case MEDIATYPE_STILL_IMAGE:
-			$mediasubtype=MEDIATYPE_IMAGE;
-			print("MEDIATYPE_STILL_IMAGE </br>");			
-		;
-		break;
-		case "";
-			print("'' </br>");
-			$mediasubtype=$default;
-		;
-		break;
-		default:
-			print("default </br>");
-			$mediasubtype=MEDIASUBTYPE_UNRECOGNIZED;
-		break;
+	$mediasubtype=$default;		
+	print("\$_GET[QS_PARAMETER_NAME_MEDIA_SUBTYPE]=" . $_GET[QS_PARAMETER_NAME_MEDIA_SUBTYPE] . "</BR>");
+	if (isset($_GET[QS_PARAMETER_NAME_MEDIA_SUBTYPE])){
+		$getm = $_GET[QS_PARAMETER_NAME_MEDIA_SUBTYPE];
+		switch ($getm) {
+			case QS_PARAMETER_VALUE_MEDIASUBTYPE_JPG:
+				$mediasubtype=MEDIASUBTYPE_JPG;			
+			;
+			break;
+			case QS_PARAMETER_VALUE_MEDIASUBTYPE_AVI:
+				$mediasubtype = MEDIASUBTYPE_AVI;			
+			;
+			break;
+			case QS_PARAMETER_VALUE_MEDIASUBTYPE_FLV:				
+				$mediasubtype = MEDIASUBTYPE_FLV;
+			;
+			break;				
+			default:
+				$mediasubtype = $default;
+			break;
+		}		
+		print("\$mediasubtype=" . $mediasubtype. "</BR>");
+	}else{	
+		$mediatype=getQSMediaType("");
+		print("mediatype $mediatype  default $default</br>");
+		switch ($mediatype) {
+			case MEDIATYPE_VIDEO:
+				$mediasubtype=MEDIASUBTYPE_AVI;
+				print("MEDIATYPE_VIDEO </br>");
+			;
+			break;
+			case MEDIATYPE_STILL_IMAGE:
+				$mediasubtype=MEDIATYPE_IMAGE;
+				print("MEDIATYPE_STILL_IMAGE </br>");			
+			;
+			break;
+			case "";
+				print("'' </br>");
+				$mediasubtype=$default;
+			;
+			break;
+			default:
+				print("default </br>");
+				$mediasubtype=MEDIASUBTYPE_UNRECOGNIZED;
+			break;
+		}
 	}
 	print("mediasubtype = $mediasubtype mediatype=$mediatype </br>");
 	return $mediasubtype;
