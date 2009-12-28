@@ -1,9 +1,12 @@
-#include "cv.h"
-#include <stdio.h>
-#include "FaceProcessor.h"
-#include "config.h"
-
+#include <string>
 #include <list>
+#include <stdio.h>
+
+#include "cv.h"
+#include "FaceProcessor.h"
+#include "fd_util.h"
+
+
 using namespace std;
 
 typedef list<FDFaceThread>   fdthread_list_t;
@@ -27,15 +30,7 @@ CRITICAL_SECTION gThreadsCS;
 
 //CvSeq* gFacesCurrentFrameList = NULL; //faces above threshold in current frame
 
- struct FDFaceThreadStats {
-	Face*		pFaceRect;
-	int			threadId;
-	float		distance;
-	
-	FDFaceThreadStats(int _thId = -1, Face*  _pFaceRect = NULL) : pFaceRect(_pFaceRect), threadId(_thId) ,distance(-1)
-	{}
 
-};
 
 
 CvMemStorage * pHistoryStorage = 0;  
@@ -46,16 +41,81 @@ const NullRect FD_NULL_RECT;
 // function definition
 IplImage * createFrameCopy(IplImage * pImg);
 FDHistoryEntry& addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id);
-void processThreads(CvSeq* pFacesSeq,frame_id_t frame_id= -1);
 void processThreads2(CvSeq* pFacesSeq,frame_id_t frame_id= -1);
 
 void popHistory();
 void popAndCleanEmptyThreads();
 void deallocHistoryEntry(FDHistoryEntry & h);
 
-void saveThreadImages(FDFaceThread & thread);
-void saveThreadVideo(FDFaceThread & thread);
+bool saveThreadImages(FDFaceThread & thread,string & outputFilename);
+bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename);
+bool GetSecondsSince1970(string& timeAsStr);
+void date_and_time2string(string & str);
+
+#include "configini.h"
+
+// ===================================================
+// ============ Start config =========================
+// ===================================================
+
+string base_ofilename;
+
+const char DEFAULT_CONFIG_FILENAME[] = "face_detect.ini";
+const char SECTION_CONFIG[] = "config";
+
+
+const char PROPERTY_OUTPUT_DIR[]						= "output_dir";
+string oPath;
+
+const char PROPERTY_MAX_ALLOWED_MISSED_COUNT[]			= "max_missed";
+int MAX_ALLOWED_MISSED_COUNT = 10;
+
+const char PROPERTY_MAX_ALLOWED_CONSECUTIVE_MISSES[]	= "max_consecutive_missed";
+int MAX_ALLOWED_CONSECUTIVE_MISSES = 3;
+
+const char PROPERTY_DIST_THRESHOLD[]					= "dist_thresh";
+float DIST_THRESHOLD = 100.0;
+
+//A face must appear in at least this number of frames, to be considered "detected" (filtering)
+const char PROPERTY_MIN_FACE_OCCURENCES_THRESH[]		= "min_faces";
+int MIN_FACE_OCCURENCES_THRESH  = 2;
+
+#define VIDEO_OUTPUT_FORMAT  CV_FOURCC_DEFAULT
+
+
+
+
+//TODO ADD FLOAT VERY CLOSE DIST THRESH
+
+//#define OPENCV_ROOT  "G:\\projects\\OpenCV2.0"
+
+
+
+
+
+
+bool initConfig(const string& configFilename = DEFAULT_CONFIG_FILENAME){
+	
+	if (!getIniValue(configFilename,
+					 SECTION_CONFIG,
+					 PROPERTY_OUTPUT_DIR,
+					 "C:\\xampp\\htdocs\\planetariumsvc\\files",
+					 oPath)){
+		printf("Can not find OUTPUT_DIR configuration");
+		return false;
+	}
+
+
+
+	return true;
+}
+
+// ===================================================
+// ============ End   config =========================
+// ===================================================
+
 int FdInit(){
+	initConfig();
 	if( !(pHistoryStorage = cvCreateMemStorage(0)) )
 	{
 		fprintf(stderr, "Can\'t allocate memory for face history\n");
@@ -64,6 +124,7 @@ int FdInit(){
 	InitializeCriticalSection(&gThreadsCS);
 	InitializeCriticalSection(&gHistoryCS);
 		
+	date_and_time2string(base_ofilename);
 
 	cout << "CreateThread(..) for pruneHistory" << endl;
 	HANDLE h = CreateThread(NULL,0,&pruneHistory,NULL //param
@@ -115,11 +176,6 @@ T& getElementAt(list<T>& lst, typename list<T>::size_type i)
 	return *itr;
 }
 
-inline FDFaceThread& getThreadByInd(CvSeq* pThStatSeq,int ind){
-	assert(ind < pThStatSeq->total);
-	FDFaceThreadStats* pThStat = (FDFaceThreadStats*)cvGetSeqElem(pThStatSeq,ind);
-	return getElementAt(gThreads,pThStat->threadId);
-}
 
 void* cvSeqGetFirst(CvSeq* pSeq){
 	return cvGetSeqElem(pSeq,0);
@@ -155,7 +211,7 @@ static int cmpFacesDistanceAndSize( const void* _a, const void* _b, void* userda
 
 	// If the thread face is very close 
 	// then compare by size
-	int veryCloseDistance = DIST_THRESHOLD/4;
+	float veryCloseDistance = DIST_THRESHOLD/4;
 
 	if ((distA < veryCloseDistance)&&(distB < veryCloseDistance)){
 		float coeffA = getSizeDiff(pAFace,pFace);
@@ -169,44 +225,7 @@ static int cmpFacesDistanceAndSize( const void* _a, const void* _b, void* userda
 
 	return (distA < distB) ? -1 : (distA > distB) ? 1:0;
 }
-// Compare by Proximity and position
-static int cmpThreadsProximity( const void* _a, const void* _b, void* userdata )
-{
-    FDFaceThreadStats* statA = (FDFaceThreadStats*)_a;
-    FDFaceThreadStats* statB = (FDFaceThreadStats*)_b;
-	Face* pFace = (Face*)userdata;
-	//FDFaceThreadStats* pFaceStats = (FDFaceThreadStats*)userdata;
 
-	CvPoint center = getRectCenter((Face*)userdata);
-
-//	FDFaceThread* thA = (FDFaceThread*)cvGetSeqElem(global_pThreads,statA->threadId);
-//	FDFaceThread* thB = (FDFaceThread*)cvGetSeqElem(global_pThreads,statB->threadId);
-
-	FDFaceThread& thA = getElementAt(gThreads,statA->threadId);
-	FDFaceThread& thB = getElementAt(gThreads,statB->threadId);
-
-	Face& pThAFace = thA._pFaces.back();
-	Face& pThBFace = thB._pFaces.back();
-	
-	statA->pFaceRect = pFace;
-	statB->pFaceRect = pFace;
-
-	float distA = statA->distance = getDistance(center,getRectCenter(pThAFace));
-	float distB = statB->distance = getDistance(center,getRectCenter(pThBFace));
-
-	// If the thread face is very close 
-	// then compare by size
-	int veryCloseDistance = DIST_THRESHOLD/4;
-	if ((distA < veryCloseDistance)&&(distB < veryCloseDistance)){
-		float coeffA = getSizeDiff(pThAFace,*pFace);
-		float coeffB = getSizeDiff(pThBFace,*pFace);
-		//TODO check also history here
-		printf("distA: %d , distB: %d ",distA,distB);
-		return (coeffA < coeffB) ? -1 : (coeffA > coeffB) ? 1:0;
-	}
-
-	return (distA < distB) ? -1 : (distA > distB) ? 1:0;
-}
 
 float pow2(float fn){
 	return fn*fn;
@@ -234,55 +253,7 @@ float getOverlappingArea(CvRect* pRect1,CvRect* pRect2){
 	return area;
 }
 
-int matchThreadToFaceByProxymityAndSize(CvSeq* pThStatSeq,CvRect* pFaceRect){
 
-	if ((pFaceRect == NULL)||(pThStatSeq->total == 0)) return -1;
-	printf("Threads :%d ",pThStatSeq->total);
-	// Sort thread stat object by propximity to the face
-	cvSeqSort( pThStatSeq , cmpThreadsProximity, pFaceRect);
-	
-	FDFaceThreadStats* pClosestStat = (FDFaceThreadStats*)cvSeqGetFirst(pThStatSeq);
-	
-	if (pThStatSeq->total == 1){
-		FDFaceThread& pTh = getElementAt(gThreads,pClosestStat->threadId);
-		pClosestStat->distance = getDistance(getRectCenter(pFaceRect),getRectCenter(pTh._pFaces.back()));		
-	}
-	
-	if (pClosestStat->distance > DIST_THRESHOLD) 
-		return -1;
-
-	printf("Match th: %d , ",pClosestStat->threadId);
-	// Remove overlapping Rects
-	
-	/*int ind = 1;
-	while(ind < pThStatSeq->total) {
-		FDFaceThreadStats* pStat = (FDFaceThreadStats*)cvGetSeqElem(pThStatSeq,ind);
-		FDFaceThread* pTh = (FDFaceThread*)cvGetSeqElem(pThreads,pStat->threadId);
-		CvRect* pThFaceRect = (CvRect*)cvSeqGetLast(pTh->pFaces);
-
-		float oArea = getOverlappingArea(pFaceRect,pThFaceRect);
-		float fArea =  pFaceRect->width * pFaceRect->height;
-		float relation = oArea > 0?(oArea/fArea):0;
-
-		printf(" Overlapping thid : %d Relation :%f\n",pStat->threadId , relation);
-
-
-		if (
-			((relation > 0.25))&&
-			(pStat->distance < (pFaceRect->width/2))
-			//(pTh->nonMissedCount < 10)
-			){
-			cvSeqRemove(pThreads,pStat->threadId);
-			cvSeqRemove(pThStatSeq,ind);
-		}else{
-			ind++;
-		}
-		ind++;
-	}*/
-	
-
-	return 0;
-}
 
 //// Currently chooses the most close rectangle from all the threads
 //int matchThreadToFaceByProximity(CvSeq* pThIndexes,CvRect* pFaceRect){
@@ -411,17 +382,6 @@ void addNewFaceToCandidates(FDFaceThread& pThread,Face* pFaceRect){
 
 void addNewFaceToThread(FDFaceThread& pThread,const Face & pFace){
 	pThread._pFaces.push_back(pFace);
-}
-// The returned seq size is as the number of threads in gThreads 
-CvSeq* createThreadStatsSeq(){
-	CvSeq* pThStatsSeq = cvCreateSeq(CV_SEQ_ELTYPE_GENERIC, sizeof(CvSeq),sizeof(FDFaceThreadStats),pHistoryStorage);
-	for(int i = 0;i<(int)gThreads.size();i++){
-		static FDFaceThreadStats stats;
-		stats.threadId = i;
-		cvSeqPush( pThStatsSeq, &stats );
-	}
-
-	return pThStatsSeq;
 }
 
 
@@ -682,8 +642,9 @@ DWORD WINAPI pruneHistory(LPVOID param){
 		cout << "[mftp= " << minFrameToKeep << ']' << endl;
 		while(itr->frame_id < minFrameToKeep && list_size > MIN_LIST_SIZE )
 		{
-			deallocHistoryEntry(*itr);			
+			//TODO
 			EnterCriticalSection(&gHistoryCS);
+			deallocHistoryEntry(*itr);		
 			gHistory.erase(itr++);
 			list_size = gHistory.size();
 			LeaveCriticalSection(&gHistoryCS);
@@ -708,6 +669,8 @@ DWORD WINAPI pruneHistory(LPVOID param){
 
 
 #include <windows.h>
+#include "RegisterOutput.h"
+
 //param is a Thread * 
 DWORD WINAPI saveAndDeleteThread(LPVOID param) {
 	ftracker(__FUNCTION__,param,'x');
@@ -717,8 +680,35 @@ DWORD WINAPI saveAndDeleteThread(LPVOID param) {
 	assert(pTh);	
 	//pTh->pruneFacesList();
 	pTh->serializeToLog(cout);
-	//saveThreadImages(*pTh);
-	saveThreadVideo(*pTh);
+	
+	{	//saving one image and notifying server
+		string oFilename;
+		if (saveThreadImages(*pTh,oFilename)){
+			try {
+				registerOutputFile(oFilename);
+			} catch (const std::exception e) {
+				cerr << e.what() << endl;
+			}
+		} 	else {
+			cerr << "failed to save an image for face thread";
+		}
+	}
+
+	{	//saving one image and notifying server
+		string oFilename;
+		if (saveThreadVideo(*pTh,oFilename)){
+			try {
+				registerOutputFile(oFilename);
+			} catch (const std::exception e) {
+				cerr << e.what() << endl;
+			}
+		} 	else {
+			cerr << "failed to save a video for face thread";
+		}
+	}
+
+
+//	saveThreadVideo(*pTh);
 
 	
 	//find this FaceThread in gThreads_beingSerialized and then erase it from there
@@ -736,25 +726,76 @@ DWORD WINAPI saveAndDeleteThread(LPVOID param) {
 	assert(false); // thread not found!
 	return -1;
 }
+#include <time.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/timeb.h>
+
+bool GetSecondsSince1970(string& timeAsStr) {
+	time_t ltime;
+	time( &ltime );
+
+	ostringstream oss;
+	oss << ltime;
+
+	timeAsStr = oss.str();
+	return true;
+}
+
+
+
+#include <time.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/timeb.h>
+#include <string.h>
+
+void date_and_time2string(string & str)
+{
+    char tmpbuf1[128],tmpbuf2[128], ampm[] = "AM";
+
+    // Set time zone from TZ environment variable. If TZ is not set,
+    // the operating system is queried to obtain the default value 
+    // for the variable. 
+    //
+    _tzset();
+
+    // Display operating system-style date and time. 
+    _strdate_s( tmpbuf1, 128 );
+	for (char * p = tmpbuf1 ; *p ; ++p)
+		if (!isalnum(*p))
+			*p = '_';
+    _strtime_s( tmpbuf2, 128 );
+	for (char * p = tmpbuf2 ; *p ; ++p)
+		if (!isalnum(*p))
+			*p = '_';
+	
+	str += tmpbuf1;
+	str += "__";
+	str += tmpbuf2;
+
+   
+}
+
 
 
 #include <direct.h>
-int image_series_cnt = 0;
-void saveThreadImages(FDFaceThread & thread) 
+//TODO init to local time
+long image_series_cnt = 0;
+bool saveThreadImages(FDFaceThread & thread,string & outputFilename)
 {
 	//thread.pruneFacesList();
-	int my_series_num = ++image_series_cnt; //multi-threading kind of more protection
-	char path [1024];
-	sprintf(path,"images_dir_%d",my_series_num);
-	_rmdir(path);
-	if (_mkdir(path))
-		cerr << "failed to mkdir " << path << endl;
-	
-
-	
 	if (thread._pFaces.empty())
-		return; //nothing to do
+		return false; //nothing to do
 
+	long my_series_num = ++image_series_cnt; //multi-threading kind of more protection
+	//char path [1024];
+	//sprintf(path,"images_dir_%d",my_series_num);
+	//_rmdir(path);
+	//if (_mkdir(path))
+	//	cerr << "failed to mkdir " << path << endl;
+	
+	
 	
 	face_list_t::iterator    faces_itr   = thread._pFaces.begin();
 	////TODO mylocker(pFacesMutex) - just to be on the safe side for future changes..
@@ -774,7 +815,6 @@ void saveThreadImages(FDFaceThread & thread)
 
 
 	int image_num = 0;
-	
 	for( ; faces_itr != thread._pFaces.end() ; ++image_num)
 	{
 		assert(history_itr != gHistory.end());
@@ -782,32 +822,46 @@ void saveThreadImages(FDFaceThread & thread)
 			; //nothing - face missing in this frame
 		} else {
 			assert(history_itr->frame_id == faces_itr->frame_id);
-			ostringstream oss_filename;
-			oss_filename << path << "\\planetarium_image_" << my_series_num << '_' << image_num << ".jpg";
+			ostringstream filename;
+			filename << "planetarium_image__" << base_ofilename << "__" << my_series_num << "_" << image_num << ".jpg";
+			string filename_with_path = oPath + "\\" + filename.str() ;
 			cout << "< saving image " << history_itr->frame_id << ">" << endl;
+			
+			EnterCriticalSection(&gHistoryCS);
 			cvResetImageROI(history_itr->pFrame); 
 			cvSetImageROI(history_itr->pFrame,*faces_itr);
-			if (!cvSaveImage(oss_filename.str().c_str(),history_itr->pFrame))
-				cerr << "Couldn't save image " << oss_filename.str() << endl;
+			bool wasSucces = false;//cvSaveImage(filename_with_path.c_str(),history_itr->pFrame);
+			LeaveCriticalSection(&gHistoryCS);
+			
+			if (!wasSucces)
+				cerr << "Couldn't save image " << filename_with_path << endl;
+			else {
+				//for now, exit after first image is written
+				outputFilename = filename.str();
+				return true;
+			}
+
 			cvResetImageROI(history_itr->pFrame); 
 			++faces_itr;
 		}
 		++history_itr;
 	}
 	cout << "< fin saving >" << endl;
+	return true;
 }
-#define VIDEO_SIZE 200
-
-void saveThreadVideo(FDFaceThread & thread) 
+#define VIDEO_SIZE 100
+#define MIN_FRAMES_FOR_VIDEO 50
+bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 {
+	if (thread._pFaces.size() < MIN_FRAMES_FOR_VIDEO)
+		return false;
+	long my_series_num = ++image_series_cnt; //multi-threading kind of more protection
 
-	int my_series_num = ++image_series_cnt; //multi-threading kind of more protection
-	
 	cout << "Going to save video with a total of " << thread._pFaces.size() << " frames" <<endl;
 
 	
 	if (thread._pFaces.empty())
-		return; //nothing to do
+		return false; //nothing to do
 
 	
 	face_list_t::iterator    faces_itr   = thread._pFaces.begin();
@@ -826,22 +880,25 @@ void saveThreadVideo(FDFaceThread & thread)
 	assert(history_itr != gHistory.end());
 	assert(history_itr->frame_id == faces_itr->frame_id);
 
-	ostringstream oss_filename;
-	oss_filename << "planetarium_video_" << my_series_num << ".avi";
+	ostringstream filename;
+	filename << "planetarium_video__" << base_ofilename << "__" << my_series_num << ".avi";
+	string filename_with_path = oPath + "\\" + filename.str();
 	
 	IplImage * pImage = cvCreateImage(cvSize(VIDEO_SIZE,VIDEO_SIZE),history_itr->pFrame->depth,
 													  history_itr->pFrame->nChannels);
-	assert(pImage);
-	CvVideoWriter * vid_writer = cvCreateVideoWriter(oss_filename.str().c_str(),
+	if (!pImage) {
+		cerr << "Can't alloc image in " << __FUNCTION__ << endl;
+		return false;
+	}
+	CvVideoWriter * vid_writer = cvCreateVideoWriter(filename_with_path.c_str(),
 													 VIDEO_OUTPUT_FORMAT,
 	 						   30/*fps*/,cvSize(VIDEO_SIZE,VIDEO_SIZE),1);
 	if (!vid_writer)
 	{
-		cerr << "Can't open video writing for file: " << oss_filename.str() << endl;
-		return;
+		cerr << "Can't open video writing for file: " << filename_with_path << endl;
+		return false;
 	}
 
-	
 	for( ; faces_itr != thread._pFaces.end() ; )
 	{
 		assert(history_itr != gHistory.end());
@@ -849,15 +906,21 @@ void saveThreadVideo(FDFaceThread & thread)
 			; //nothing - face missing in this frame
 		} else {
 			assert(history_itr->frame_id == faces_itr->frame_id);
-			
+
+			cout << "< will save vid image " << history_itr->frame_id << ">" << endl;
+			//copy and resize while locking all frames
+			EnterCriticalSection(&gHistoryCS);
 			cvResetImageROI(history_itr->pFrame); 
 			cvSetImageROI(history_itr->pFrame,*faces_itr);
 			cvResize(history_itr->pFrame,pImage);
-			cvWriteFrame(vid_writer,pImage);
 			cvSetImageROI(history_itr->pFrame,*faces_itr);			
-			cout << "< saving vid image " << history_itr->frame_id << ">" << endl;
+			LeaveCriticalSection(&gHistoryCS);
+
+			cvWriteFrame(vid_writer,pImage);
+			
+
 			if (0) //todo
-				cerr << "Couldn't vid save image " << oss_filename.str() << endl;
+				cerr << "Couldn't vid save image " << filename.str() << endl;
 			++faces_itr;
 		}
 		++history_itr;
@@ -866,7 +929,10 @@ void saveThreadVideo(FDFaceThread & thread)
 	cvReleaseVideoWriter(&vid_writer);
 	cvReleaseImage(&pImage);
 
+	cout << "< fin vid saving " << filename_with_path << " >" << endl;
 
-	cout << "< fin vid saving >" << endl;
+	outputFilename = filename.str();
+	return true;
+
 }
 

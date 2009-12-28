@@ -9,7 +9,7 @@
 #include "cv.h"
 #include "highgui.h"
 #include "capture.h"
-#include "config.h"
+#include "fd_util.h"
 
 #include <iostream>
 #include <iomanip>
@@ -36,7 +36,7 @@ int initCapture(bool isUseCam)
 	if (isUseCam) 	
 	{
 		cout << "Will capture from webcam" << endl;
-		pCapture = cvCaptureFromCAM(CV_CAP_ANY); //"	index – Index of the camera to be used. If there is only one camera or it does not matter what camera is used -1 may be passed."
+		pCapture = cvCaptureFromCAM(2); //"	index – Index of the camera to be used. If there is only one camera or it does not matter what camera is used -1 may be passed."
 	} else 	{
 
 
