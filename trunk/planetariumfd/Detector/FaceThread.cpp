@@ -46,7 +46,7 @@ void FDFaceThread::serializeToLog(std::ostream &o)
 
 
 //Threads are pruned when longer than this 
-#define MAX_THREAD_HISTORY_SIZE 100
+#define MAX_THREAD_HISTORY_SIZE 250
 
 void FDFaceThread::pruneFacesList() {
 	//TODO mylocker(_pFacesLock);

@@ -45,7 +45,7 @@ int registerOutputFile(const std::string& vidFile) {
 //	static const char *postthis="moao mooo moo moo";
 
 	curl = curl_easy_init();
-	cout << "sending " << type << " cURL: " << oss.str() << endl;
+////	cout << "sending " << type << " cURL: " << oss.str() << endl;
 	if(curl) {
 		curl_easy_setopt(curl, CURLOPT_URL, oss.str().c_str());
 		
