@@ -27,7 +27,8 @@ void FDFaceThread::serializeToLog(std::ostream &o)
 		 << ",cm:" << consecutiveMissedCount 
 		 << ",m:" << missedCount 
 		 << ",nm:" << nonMissedCount 
-		 << " (cand:" << ((pCandidates) ? pCandidates->total : 0)<< ")" << endl;
+		 //<< " (cand:" << ((pCandidates) ? pCandidates->total : 0)<< ")" 
+		 << endl;
 	
 	o << "\t";
 	for (list<Face>::iterator itr = _pFaces.begin() ; itr != _pFaces.end() ; ++itr)
@@ -49,8 +50,7 @@ void FDFaceThread::serializeToLog(std::ostream &o)
 
 void FDFaceThread::pruneFacesList() {
 	//TODO mylocker(_pFacesLock);
-	/*
 	while(_pFaces.size() > MAX_THREAD_HISTORY_SIZE)
 		_pFaces.pop_front();
-		*/
+
 }
