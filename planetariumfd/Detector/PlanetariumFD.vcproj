@@ -42,7 +42,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="D:\Projects\OpenCV\latest_tested_snapshot\opencv\include\opencv;&quot;D:\Projects\OpenCV\planetariumFD_Yaniv\libCurl\7.19.3-win32-ssl-msvc\include&quot;;D:\Projects\OpenCV\planetariumFD_Yaniv\include"
+				AdditionalIncludeDirectories="D:\Projects\OpenCV\latest_tested_snapshot\opencv\include\opencv;&quot;..\libCurl\7.19.3-win32-ssl-msvc\include&quot;;G:\projects\opencv_src\include\opencv;..\include"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -65,7 +65,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="cv200d.lib cxcore200d.lib highgui200d.lib commonlib.lib curllib.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="&quot;..\CommonLib\$(ConfigurationName)&quot;;&quot;..\libCurl\7.19.3-win32-ssl-msvc\lib\$(ConfigurationName)&quot;;&quot;D:\Projects\OpenCV_CMAKE_BIN\lib\$(ConfigurationName)&quot;"
+				AdditionalLibraryDirectories="&quot;..\CommonLib\$(ConfigurationName)&quot;;&quot;..\libCurl\7.19.3-win32-ssl-msvc\lib\$(ConfigurationName)&quot;;&quot;D:\Projects\OpenCV_CMAKE_BIN\lib\$(ConfigurationName)&quot;;&quot;G:\projects\opencv_src\lib\$(ConfigurationName)&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"
@@ -122,7 +122,7 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalIncludeDirectories="D:\Projects\OpenCV\latest_tested_snapshot\opencv\include\opencv;&quot;D:\Projects\OpenCV\planetariumFD_Yaniv\libCurl\7.19.3-win32-ssl-msvc\include&quot;;D:\Projects\OpenCV\planetariumFD_Yaniv\include"
+				AdditionalIncludeDirectories="D:\Projects\OpenCV\latest_tested_snapshot\opencv\include\opencv;&quot;..\libCurl\7.19.3-win32-ssl-msvc\include&quot;;G:\projects\opencv_src\include\opencv;..\include"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="0"
 				UsePrecompiledHeader="0"
@@ -143,7 +143,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="cv200.lib cxcore200.lib highgui200.lib commonlib.lib  curllib.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="&quot;..\CommonLib\$(ConfigurationName)&quot;;&quot;..\libCurl\7.19.3-win32-ssl-msvc\lib\$(ConfigurationName)&quot;;&quot;D:\Projects\OpenCV_CMAKE_BIN\lib\$(ConfigurationName)&quot;"
+				AdditionalLibraryDirectories="&quot;..\CommonLib\$(ConfigurationName)&quot;;&quot;..\libCurl\7.19.3-win32-ssl-msvc\lib\$(ConfigurationName)&quot;;&quot;D:\Projects\OpenCV_CMAKE_BIN\lib\$(ConfigurationName)&quot;;&quot;G:\projects\opencv_src\lib\$(ConfigurationName)&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -214,6 +214,10 @@
 			</File>
 			<File
 				RelativePath=".\stdafx.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\transformations.cpp"
 				>
 			</File>
 		</Filter>
