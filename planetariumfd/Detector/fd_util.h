@@ -137,68 +137,46 @@ void LinearConvolution(T X[],T Y[], T Z[], int lenx, int leny)
 		zptr++;
 	}
 }
-//void LinearConvolution(Face X[],float Y[], Face Z[], int lenx, int leny)
-//{
-//	Face *zptr,*xptr,*yptr,sum;
-//	int lenz;
-//	int i,n,n_lo,n_hi;
-//
-//	lenz=lenx+leny-1;
-//
-//	zptr=Z;
-//
-//	for (i=0;i<lenz;i++) 
-//	{
-//		sum = 0.0;
-//		n_lo = (0>(i-leny+1)) ? 0      : i-leny+1;
-//		n_hi = (lenx-1<i    ) ? lenx-1 : i;
-//		xptr = X+n_lo;
-//		yptr = Y+i-n_lo;
-//		for (n=n_lo;n<=n_hi;n++) 
-//		{
-//			sum += *xptr * *yptr;
-//			xptr++;
-//			yptr--;
-//		}
-//		*zptr = sum;
-//		zptr++;
-//	}
-//}
 
 
 
-// output z the size of x:
+
+
+//void LinearConvolutionSame(T X[],T Y[], T Z[], int lenx, int leny)
+
 template <typename T>
-void LinearConvolution2(T X[],T Y[], T Z[], int lenx, int leny)
+void LinearConvolutionSame(T * X,T * Y, T * Z, int lenx, int leny)
 {
-	T *zptr,*xptr,*yptr,sum;
+	T *zptr = Z;
 	int lenz;
-	int i,n,n_lo,n_hi;
 
 	lenz=lenx+leny-1;
 
-	zptr=Z;
 
-	for (i=0;i<lenz;i++) 
+	for (int i=0;i<lenz;i++) 
 	{
-		sum = 0.0;
-		n_lo = (0>(i-leny+1)) ? 0      : i-leny+1;
-		n_hi = (lenx-1<i    ) ? lenx-1 : i;
-		xptr = X+n_lo;
-		yptr = Y+i-n_lo;
-		for (n=n_lo;n<=n_hi;n++) 
+		if (i - leny/2 >= lenx)
+			return;
+
+		T sum = 0.0;
+		int n_lo = (0>(i-leny+1)) ? 0      : i-leny+1;
+		int n_hi = (lenx-1<i    ) ? lenx-1 : i;
+		T * xptr = X+n_lo;
+		T * yptr = Y+i-n_lo;
+		T normalize = 0.0;
+		for (int n=n_lo;n<=n_hi;n++) 
 		{
 			sum += *xptr * *yptr;
+			normalize += *yptr;
 			xptr++;
 			yptr--;
 		}
-		*zptr = sum;
-		zptr++;
+		if (i >= leny/2){
+			*zptr = sum / normalize;
+			zptr++;
+		}
+		
 	}
 }
-
-
-
-
 
 #endif
