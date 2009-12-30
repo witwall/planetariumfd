@@ -60,13 +60,15 @@ CvScalar colorArr[3]= {CV_RGB(255,0,0),
 				       CV_RGB(0,0,255)};
 
 
-double filt[3] = {1,2,1};//,3,3,1};
+double filt[4] = {1,3,3,1};
 const int N = sizeof(filt) / sizeof(double);
 
 void try_conv() {
-	double a[20] = {1,2,3,10,5,6,13,8,9,-1,11,12,7,14,15,16,32,18,19,20};
+	double a[20] = {1,2,3,4,5,6,13,8,9,-1,11,12,7,14,15,16,32,18,19,20};
 	double b[20+N-1];
-	double c[20];
+	double c1[20];
+	double c2[20];
+
 	double s = 0.0f;
 	for (int i = 0 ; i < N ; ++i)
 		s += filt[i];
@@ -75,8 +77,9 @@ void try_conv() {
 
 	LinearConvolution(a,filt,b,20,N);
 	for (int i = 0 ; i < 20 ; ++i)
-		c[i] = b[i+N/2];
+		c1[i] = b[i+N/2];
 
+	LinearConvolutionSame(a,filt,c2,20,N);
 
 };
 
@@ -87,7 +90,7 @@ void try_conv() {
 //
 int _tmain(int argc, _TCHAR* argv[])
 {
-	//try_conv();
+//	try_conv();
 	if( !initAll() ) 
 		exitProgram(-1);
 

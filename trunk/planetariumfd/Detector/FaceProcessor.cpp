@@ -66,6 +66,8 @@ void deallocHistoryEntry(FDHistoryEntry & h);
 
 bool saveThreadImages(FDFaceThread & thread,string & outputFilename);
 bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename);
+bool saveThreadVideo2(FDFaceThread & thread ,string & outputFilename);
+
 bool GetSecondsSince1970(string& timeAsStr);
 void date_and_time2string(string & str);
 int deleteThreadFromgThreads_beingSerialized(FDFaceThread * pTh);
@@ -665,7 +667,7 @@ DWORD WINAPI saveAndDeleteThread(LPVOID param) {
 			}
 		}
 
-		{	//saving one image and notifying server
+		{	
 			string oFilename;
 			if (saveThreadVideo(*pTh,oFilename)){
 				try {
@@ -677,6 +679,20 @@ DWORD WINAPI saveAndDeleteThread(LPVOID param) {
 				cerr << "failed to save a video for face thread";
 			}
 		}
+
+		{	//saving smoothed vid
+			string oFilename;
+			if (saveThreadVideo2(*pTh,oFilename)){
+				try {
+					registerOutputFile(oFilename);
+				} catch (const std::exception& e) {
+					cerr << "exception in image  saving:" << e.what() << endl;
+				}
+			} 	else {
+				cerr << "failed to save a video for face thread";
+			}
+		}
+
 	}
 	return deleteThreadFromgThreads_beingSerialized(pTh);
 }
@@ -844,8 +860,8 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 	if (thread._pFaces.empty())
 		return false; //nothing to do
 
-	
-	face_list_t::iterator    faces_itr   = thread._pFaces.begin();
+	face_list_t&  my_faces = thread._pFaces;
+	face_list_t::iterator    faces_itr   = my_faces.begin();
 	////TODO mylocker(pFacesMutex) - just to be on the safe side for future changes..
 	//TODO gHistoryMutex.lock
 	assert(!gHistory.empty());
@@ -886,7 +902,7 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 		return false;
 	}
 
-	for( ; faces_itr != thread._pFaces.end() ; )
+	for( ; faces_itr != my_faces.end() ; )
 	{
 		assert(history_itr != gHistory.end());
 		if (history_itr->frame_id < faces_itr->frame_id) {
@@ -918,6 +934,65 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 	return true;
 
 }
+
+float SIZE_FILT[5] = {1,4,6,4,1};
+float LOCATION_FILT[3] = {1,1,1};
+
+void smoothFaceSeries(std::list<Face> & face_list) {
+	float * const in  = new float[face_list.size()];
+	float * const  out = new float[face_list.size()];
+	
+	float * const in_end = in + face_list.size();
+	float * const out_end = out + face_list.size();
+
+	{
+		std::list<Face>::iterator itr = face_list.begin();
+		for (float * pin = in ; pin < in_end ; )
+			*pin++ = (float)(itr++)->x;
+		LinearConvolutionSame(in,SIZE_FILT,out,(int)face_list.size(),(int)sizeof(SIZE_FILT)/sizeof(float));
+		
+		itr = face_list.begin();
+		for (float * pout = out ; pout < out_end ; )
+			(itr++)->x = my_round(*pout++);
+	}
+	Sleep(50);
+	{
+		std::list<Face>::iterator itr = face_list.begin();
+		for (float * pin = in ; pin < in_end ; )
+			*pin++ = (float)(itr++)->y;
+		LinearConvolutionSame(in,SIZE_FILT,out,(int)face_list.size(),(int)sizeof(SIZE_FILT)/sizeof(float));
+		
+		itr = face_list.begin();
+		for (float * pout = out ; pout < out_end ; )
+			(itr++)->y = my_round(*pout++);
+	}
+	Sleep(50);
+	{
+		std::list<Face>::iterator itr = face_list.begin();
+		for (float * pin = in ; pin < in_end ; )
+			*pin++ = (float)(itr++)->width;
+		LinearConvolutionSame(in,SIZE_FILT,out,(int)face_list.size(),(int)sizeof(SIZE_FILT)/sizeof(float));
+		
+		itr = face_list.begin();
+		for (float * pout = out ; pout < out_end ; )
+			(itr++)->width = my_round(*pout++);
+	}
+	Sleep(50);
+	{
+		std::list<Face>::iterator itr = face_list.begin();
+		for (float * pin = in ; pin < in_end ; )
+			*pin++ = (float)(itr++)->height;
+		LinearConvolutionSame(in,LOCATION_FILT,out,(int)face_list.size(),(int)sizeof(LOCATION_FILT)/sizeof(float));
+		
+		itr = face_list.begin();
+		for (float * pout = out ; pout < out_end ; )
+			(itr++)->height = my_round(*pout++);
+	}
+	Sleep(50);
+	delete[] in;
+	delete[] out;
+}
+
 
 
 //true if modified
@@ -951,7 +1026,49 @@ bool addMissingFrames(std::list<Face> & face_list) {
 	}
 	return true;
 }
+struct face_stats {
+	int min_x, max_x, min_y,max_y,
+		min_height,max_height,min_width,max_width,
+		average_height,average_width;
+};
 
+
+void faceStats(std::list<Face> & l,face_stats& s){
+	assert(!l.empty());
+	s.min_x = s.max_x = l.front().x;
+	s.min_y = s.max_y = l.front().y;
+	s.min_width = s.max_width = l.front().width;
+	s.min_height = s.max_height = l.front().height;
+	s.average_height = s.average_width = -1;
+	long sum_height = 0, sum_width = 0;
+	int i = 0;
+	for (std::list<Face>::iterator itr = l.begin() ; itr != l.end(); ++itr)
+	{
+		++i;
+		sum_height += itr->height;
+		sum_width  += itr->width;
+		
+		if (s.min_x > itr->x)
+			s.min_x = itr->x;
+		if (s.min_y	> itr->y)
+			s.min_y	= itr->y;
+		if (s.min_width > itr->width)
+			s.min_width = itr->width;
+		if (s.min_height > itr->height)
+			s.min_height = itr->height;
+
+		if (s.max_x < itr->x)
+			s.max_x = itr->x;
+		if (s.max_y	< itr->y)
+			s.max_y	= itr->y;
+		if (s.max_width < itr->width)
+			s.max_width = itr->width;
+		if (s.max_height < itr->height)
+			s.max_height = itr->height;
+	}
+	s.average_height = sum_height / i;
+	s.average_width  = sum_width  / i;
+}
 
 
 
@@ -1006,8 +1123,102 @@ void FDFaceThread::serializeToLog(std::ostream &o)
 
 void FDFaceThread::pruneFacesList() {
 	//TODO mylocker(_pFacesLock);
-	while(_pFaces.size() > MAX_THREAD_HISTORY_SIZE)
+	while((int)_pFaces.size() > MAX_THREAD_HISTORY_SIZE)
 		_pFaces.pop_front();
-
 }
 
+//with smoothing
+
+bool saveThreadVideo2(FDFaceThread & thread ,string & outputFilename)
+{
+	if ((int)thread._pFaces.size() < MIN_FRAMES_FOR_VIDEO)
+		return false;
+	long my_series_num = ++image_series_cnt; //multi-threading kind of more protection
+
+	////cout << "Going to save video with a total of " << thread._pFaces.size() << " frames" <<endl;
+
+	
+	if (thread._pFaces.empty())
+		return false; //nothing to do
+
+	//make a modifiable copy
+	face_list_t  my_faces = thread._pFaces;
+	
+	addMissingFrames(my_faces);
+	Sleep(50);
+	smoothFaceSeries(my_faces);
+	Sleep(50);
+
+	face_list_t::iterator    faces_itr   = my_faces.begin();
+	////TODO mylocker(pFacesMutex) - just to be on the safe side for future changes..
+	//TODO gHistoryMutex.lock
+	assert(!gHistory.empty());
+
+	EnterCriticalSection(&gHistoryCS);
+	history_list_t::iterator history_itr = gHistory.begin();
+	bool isLocked = true;
+	while(history_itr->frame_id < faces_itr->frame_id)
+		++history_itr;
+	LeaveCriticalSection(&gHistoryCS); //once we find the first match, it is no longer necessary to hold the lock since pruneHistory can't pass this point...
+
+
+	assert(history_itr != gHistory.end());
+	assert(history_itr->frame_id == faces_itr->frame_id);
+
+	ostringstream filename;
+	filename /*<< "planetarium_video__"*/ << base_ofilename << "__" << my_series_num-1 << "stabilized" << ".avi";
+	string filename_with_path = oPath + "\\" + filename.str();
+	
+	IplImage * pImage = cvCreateImage(cvSize(FACE_VIDEO_SIZE,FACE_VIDEO_SIZE),history_itr->pFrame->depth,
+													  history_itr->pFrame->nChannels);
+	if (!pImage) {
+		cerr << "Can't alloc image in " << __FUNCTION__ << endl;
+		return false;
+	}
+	
+	float fps = estimated_fps * FPS_SPEEDUP_FACTOR;
+	if (fps < 2.0) //do not allow less than than 2 fps
+		fps = 2.0;
+	
+	CvVideoWriter * vid_writer = cvCreateVideoWriter(filename_with_path.c_str(),
+													 VIDEO_OUTPUT_FORMAT,
+	 						    fps,cvSize(FACE_VIDEO_SIZE,FACE_VIDEO_SIZE),1);
+	
+	if (!vid_writer)
+	{
+		cerr << "Can't open video writing for file: " << filename_with_path << endl;
+		return false;
+	}
+
+	for( ; faces_itr != my_faces.end() ; )
+	{
+		assert(history_itr != gHistory.end());
+		if (history_itr->frame_id < faces_itr->frame_id) {
+			; //nothing - face missing in this frame
+		} else {
+			assert(history_itr->frame_id == faces_itr->frame_id);
+
+			////cout << "< will save vid image " << history_itr->frame_id << ">" << endl;
+			//copy and resize while locking all frames
+			EnterCriticalSection(&gHistoryCS);
+			cvResetImageROI(history_itr->pFrame); 
+			cvSetImageROI(history_itr->pFrame,*faces_itr);
+			cvResize(history_itr->pFrame,pImage);
+			cvResetImageROI(history_itr->pFrame);
+			LeaveCriticalSection(&gHistoryCS);
+			Sleep(30);
+			cvWriteFrame(vid_writer,pImage);
+			++faces_itr;
+		}
+		++history_itr;
+	}
+
+	cvReleaseVideoWriter(&vid_writer);
+	cvReleaseImage(&pImage);
+
+	////cout << "< fin vid saving " << filename_with_path << " >" << endl;
+
+	outputFilename = filename.str();
+	return true;
+
+}
