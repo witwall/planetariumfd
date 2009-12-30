@@ -6,7 +6,7 @@
 #include "fd_util.h"
 #include "configini.h"
 #include <climits>
-
+#define NO_RECTS_ON_PLAYBACK
 // for debugging:
 #include <map> 
 //#include <boost/thread/mutex.hpp>
@@ -132,14 +132,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		}else{ //no faces detected
 			Sleep(100);
 		}
-		//{
-		//	IplImage * pImage = cvCreateImage(cvSize(500,500),pfd_pVideoFrameCopy->depth,pfd_pVideoFrameCopy->nChannels);
-		//	cvResize(pfd_pVideoFrameCopy,pImage);
-		//	cvShowImage( DISPLAY_WINDOW, pImage );
-		//	cvReleaseImage(&pImage);
-		//}
-		cvShowImage( DISPLAY_WINDOW, pfd_pVideoFrameCopy );
 
+		cvShowImage( DISPLAY_WINDOW, pfd_pVideoFrameCopy );
 		cvReleaseImage(&pfd_pVideoFrameCopy);
 	
 	} //end input while
@@ -148,6 +142,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	cout << "========== Input finished ================================" << endl;
 	cout << "==========================================================" << endl << endl;
 	
+	cout << "Press a key to continue with history playback" <<endl;
+	char cc = fgetc(stdin);
 
 
 	cout << "==========================================================" << endl;
@@ -216,7 +212,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		pfd_pVideoFrameCopy = cvCreateImage( cvGetSize(itr->pFrame ), 8, 3 ); //TODO query image for its properties
 		cvCopy( itr->pFrame , pfd_pVideoFrameCopy, 0 );
 		CvSeq* pFacesSeq = itr->pFacesSeq;
-
+#ifndef NO_RECTS_ON_PLAYBACK
 		for(int i = 0 ;i < pFacesSeq->total ;i++){				
 			Face * pFaceRect = (Face*)cvGetSeqElem(pFacesSeq, i);
 			assert(pFaceRect != NULL);
@@ -227,7 +223,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			else
 				cvRectangle( pfd_pVideoFrameCopy, pt1, pt2, colorArr[i%3],1,4,0);
 		}
-
+#endif
 		if (pFacesSeq->total > 0) 
 		{	
 			assert(found);
