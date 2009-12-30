@@ -1,3 +1,4 @@
+#include <fstream>
 
 #include <cmath>
 #include <string>
@@ -65,14 +66,13 @@ void popAndCleanEmptyThreads();
 void deallocHistoryEntry(FDHistoryEntry & h);
 
 bool saveThreadImages(FDFaceThread & thread,string & outputFilename);
-bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename);
-bool saveThreadVideo2(FDFaceThread & thread ,string & outputFilename);
+bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename,bool isSmoothVideo);
 
 bool GetSecondsSince1970(string& timeAsStr);
 void date_and_time2string(string & str);
 int deleteThreadFromgThreads_beingSerialized(FDFaceThread * pTh);
 bool addMissingFrames(std::list<Face> & face_list);
-
+void smoothFaceSeries(std::list<Face> & face_list);
 
 
 // ===================================================
@@ -669,7 +669,7 @@ DWORD WINAPI saveAndDeleteThread(LPVOID param) {
 
 		{	
 			string oFilename;
-			if (saveThreadVideo(*pTh,oFilename)){
+			if (saveThreadVideo(*pTh,oFilename,false)){
 				try {
 					registerOutputFile(oFilename);
 				} catch (const std::exception& e) {
@@ -682,14 +682,14 @@ DWORD WINAPI saveAndDeleteThread(LPVOID param) {
 
 		{	//saving smoothed vid
 			string oFilename;
-			if (saveThreadVideo2(*pTh,oFilename)){
+			if (saveThreadVideo(*pTh,oFilename,true)){
 				try {
 					registerOutputFile(oFilename);
 				} catch (const std::exception& e) {
 					cerr << "exception in image  saving:" << e.what() << endl;
 				}
 			} 	else {
-				cerr << "failed to save a video for face thread";
+				cerr << "failed to save a smoothed video for face thread";
 			}
 		}
 
@@ -835,7 +835,7 @@ bool saveThreadImages(FDFaceThread & thread,string & outputFilename)
 			if (wasSucces){
 				if (image_num_saved++ == 0)
 					outputFilename = filename.str(); //save filename of 1st image only
-				if (image_num_saved == MAX_IMAGES_SAVED_PER_THREAD)
+				if (image_num_saved == MAX_JPG_IMAGES_SAVED_PER_THREAD)
 					return true;
 			} else {
 				cerr << "Couldn't save image " << filename_with_path << endl;
@@ -848,7 +848,25 @@ bool saveThreadImages(FDFaceThread & thread,string & outputFilename)
 	////cout << "< fin saving >" << endl;
 	return (image_num_saved >0);
 }
-bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
+
+ostream & printImageDebug(IplImage * p,ostream & o)
+{
+	if (p == NULL)
+		return o << "NULL";
+	else
+		return o    << "<" << (void*)p << " "
+					<< "width:" << p->width 
+					<<  ", height:" << p->height 
+					<<  ", depth:" << p->depth 
+					<<  ", nCh: " << p->nChannels 
+					<<  ", cMod: " << p->colorModel
+					<< ",  aCh" << p->alphaChannel
+					<< ", ID:" << p->ID 
+					<< ", mROI:" << p->maskROI
+					<< ">";
+}
+
+bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename,bool isSmoothVideo)
 {
 	if ((int)thread._pFaces.size() < MIN_FRAMES_FOR_VIDEO)
 		return false;
@@ -859,8 +877,20 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 	
 	if (thread._pFaces.empty())
 		return false; //nothing to do
+	
+	face_list_t my_faces_copy;
+	if (isSmoothVideo) //Make copy of list, only if it is too be modified by smoothin
+		my_faces_copy = thread._pFaces;
+	face_list_t&  my_faces = (isSmoothVideo) ? my_faces_copy : thread._pFaces;
 
-	face_list_t&  my_faces = thread._pFaces;
+	if (isSmoothVideo)
+	{
+		addMissingFrames(my_faces);
+		Sleep(50);
+		smoothFaceSeries(my_faces);
+		Sleep(50);
+	}
+
 	face_list_t::iterator    faces_itr   = my_faces.begin();
 	////TODO mylocker(pFacesMutex) - just to be on the safe side for future changes..
 	//TODO gHistoryMutex.lock
@@ -873,35 +903,42 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 		++history_itr;
 	LeaveCriticalSection(&gHistoryCS); //once we find the first match, it is no longer necessary to hold the lock since pruneHistory can't pass this point...
 
-
 	assert(history_itr != gHistory.end());
 	assert(history_itr->frame_id == faces_itr->frame_id);
 
 	ostringstream filename;
-	filename /*<< "planetarium_video__"*/ << base_ofilename << "__" << my_series_num << ".avi";
+	filename << base_ofilename << "__" << my_series_num << ((isSmoothVideo) ? "_smoothed" : "") << ".avi";
 	string filename_with_path = oPath + "\\" + filename.str();
 	
-	IplImage * pImage = cvCreateImage(cvSize(FACE_VIDEO_SIZE,FACE_VIDEO_SIZE),history_itr->pFrame->depth,
+	IplImage * p = cvCreateImage(cvSize(FACE_VIDEO_SIZE,FACE_VIDEO_SIZE),history_itr->pFrame->depth,
 													  history_itr->pFrame->nChannels);
-	if (!pImage) {
+	if (!p) {
 		cerr << "Can't alloc image in " << __FUNCTION__ << endl;
 		return false;
 	}
-	
+#ifdef DEBUGGING_VID_SIZE
+	ofstream debug_log((filename_with_path + ".log").c_str());
+	printImageDebug(p,debug_log) << endl;
+	debug_log << "============" << endl;
+#endif
 	float fps = estimated_fps * FPS_SPEEDUP_FACTOR;
 	if (fps < 2.0) //do not allow less than than 2 fps
 		fps = 2.0;
-	
 	CvVideoWriter * vid_writer = cvCreateVideoWriter(filename_with_path.c_str(),
-													 VIDEO_OUTPUT_FORMAT,
+													 CV_FOURCC_DEFAULT,//VIDEO_OUTPUT_FORMAT,
 	 						    fps,cvSize(FACE_VIDEO_SIZE,FACE_VIDEO_SIZE),1);
-	
+#ifdef DEBUGGING_VID_SIZE
+	debug_log << filename_with_path.c_str();
+	debug_log << "FPS=" << fps << "," << "VIDEO_OUTPUT_FORMAT=" << VIDEO_OUTPUT_FORMAT << endl;
+	debug_log << vid_writer << endl;
+	debug_log << "============" << endl;
+#endif
 	if (!vid_writer)
 	{
 		cerr << "Can't open video writing for file: " << filename_with_path << endl;
 		return false;
 	}
-
+	int cnt = 0;
 	for( ; faces_itr != my_faces.end() ; )
 	{
 		assert(history_itr != gHistory.end());
@@ -915,27 +952,43 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename)
 			EnterCriticalSection(&gHistoryCS);
 			cvResetImageROI(history_itr->pFrame); 
 			cvSetImageROI(history_itr->pFrame,*faces_itr);
-			cvResize(history_itr->pFrame,pImage);
+			cvResize(history_itr->pFrame,p);
+#ifdef DEBUGGING_VID_SIZE
+			debug_log << 'O' << ":\t";
+			printImageDebug(history_itr->pFrame,debug_log) << endl;
+#endif
 			cvResetImageROI(history_itr->pFrame);
+#ifdef DEBUGGING_VID_SIZE
+			debug_log << ++cnt << ":\t";
+			printImageDebug(p,debug_log) << endl;
+#endif
 			LeaveCriticalSection(&gHistoryCS);
 			Sleep(30);
-			cvWriteFrame(vid_writer,pImage);
+			if (!cvWriteFrame(vid_writer,p)){
+				cerr << "Aborting on failure to write frame to video: " << filename_with_path << endl;
+				cvReleaseVideoWriter(&vid_writer);
+				cvReleaseImage(&p);
+				return false;
+			}
 			++faces_itr;
 		}
 		++history_itr;
 	}
-
 	cvReleaseVideoWriter(&vid_writer);
-	cvReleaseImage(&pImage);
+	cvReleaseImage(&p);
 
 	////cout << "< fin vid saving " << filename_with_path << " >" << endl;
 
 	outputFilename = filename.str();
+#ifdef DEBUGGING_VID_SIZE
+	debug_log << "THE END" << endl;
+	debug_log.close();
+#endif
 	return true;
 
 }
 
-float SIZE_FILT[5] = {1,4,6,4,1};
+float SIZE_FILT[7] = {1,1,1,1,1,1,1};//{1,4,6,4,1};
 float LOCATION_FILT[3] = {1,1,1};
 
 void smoothFaceSeries(std::list<Face> & face_list) {
@@ -1128,97 +1181,3 @@ void FDFaceThread::pruneFacesList() {
 }
 
 //with smoothing
-
-bool saveThreadVideo2(FDFaceThread & thread ,string & outputFilename)
-{
-	if ((int)thread._pFaces.size() < MIN_FRAMES_FOR_VIDEO)
-		return false;
-	long my_series_num = ++image_series_cnt; //multi-threading kind of more protection
-
-	////cout << "Going to save video with a total of " << thread._pFaces.size() << " frames" <<endl;
-
-	
-	if (thread._pFaces.empty())
-		return false; //nothing to do
-
-	//make a modifiable copy
-	face_list_t  my_faces = thread._pFaces;
-	
-	addMissingFrames(my_faces);
-	Sleep(50);
-	smoothFaceSeries(my_faces);
-	Sleep(50);
-
-	face_list_t::iterator    faces_itr   = my_faces.begin();
-	////TODO mylocker(pFacesMutex) - just to be on the safe side for future changes..
-	//TODO gHistoryMutex.lock
-	assert(!gHistory.empty());
-
-	EnterCriticalSection(&gHistoryCS);
-	history_list_t::iterator history_itr = gHistory.begin();
-	bool isLocked = true;
-	while(history_itr->frame_id < faces_itr->frame_id)
-		++history_itr;
-	LeaveCriticalSection(&gHistoryCS); //once we find the first match, it is no longer necessary to hold the lock since pruneHistory can't pass this point...
-
-
-	assert(history_itr != gHistory.end());
-	assert(history_itr->frame_id == faces_itr->frame_id);
-
-	ostringstream filename;
-	filename /*<< "planetarium_video__"*/ << base_ofilename << "__" << my_series_num-1 << "stabilized" << ".avi";
-	string filename_with_path = oPath + "\\" + filename.str();
-	
-	IplImage * pImage = cvCreateImage(cvSize(FACE_VIDEO_SIZE,FACE_VIDEO_SIZE),history_itr->pFrame->depth,
-													  history_itr->pFrame->nChannels);
-	if (!pImage) {
-		cerr << "Can't alloc image in " << __FUNCTION__ << endl;
-		return false;
-	}
-	
-	float fps = estimated_fps * FPS_SPEEDUP_FACTOR;
-	if (fps < 2.0) //do not allow less than than 2 fps
-		fps = 2.0;
-	
-	CvVideoWriter * vid_writer = cvCreateVideoWriter(filename_with_path.c_str(),
-													 VIDEO_OUTPUT_FORMAT,
-	 						    fps,cvSize(FACE_VIDEO_SIZE,FACE_VIDEO_SIZE),1);
-	
-	if (!vid_writer)
-	{
-		cerr << "Can't open video writing for file: " << filename_with_path << endl;
-		return false;
-	}
-
-	for( ; faces_itr != my_faces.end() ; )
-	{
-		assert(history_itr != gHistory.end());
-		if (history_itr->frame_id < faces_itr->frame_id) {
-			; //nothing - face missing in this frame
-		} else {
-			assert(history_itr->frame_id == faces_itr->frame_id);
-
-			////cout << "< will save vid image " << history_itr->frame_id << ">" << endl;
-			//copy and resize while locking all frames
-			EnterCriticalSection(&gHistoryCS);
-			cvResetImageROI(history_itr->pFrame); 
-			cvSetImageROI(history_itr->pFrame,*faces_itr);
-			cvResize(history_itr->pFrame,pImage);
-			cvResetImageROI(history_itr->pFrame);
-			LeaveCriticalSection(&gHistoryCS);
-			Sleep(30);
-			cvWriteFrame(vid_writer,pImage);
-			++faces_itr;
-		}
-		++history_itr;
-	}
-
-	cvReleaseVideoWriter(&vid_writer);
-	cvReleaseImage(&pImage);
-
-	////cout << "< fin vid saving " << filename_with_path << " >" << endl;
-
-	outputFilename = filename.str();
-	return true;
-
-}

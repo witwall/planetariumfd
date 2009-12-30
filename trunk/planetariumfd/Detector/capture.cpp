@@ -19,6 +19,7 @@ using namespace std;
 CvCapture * pCapture = 0;
 IplImage * pImage; 
 
+//#define YANIV_DEBUGGING
 
 //////////////////////////////////
 // initCapture()
@@ -26,12 +27,9 @@ IplImage * pImage;
 int initCapture(bool isUseCam,int CAM_ID)
 {
 	ftracker f(__FUNCTION__);
-	//IplImage * pTmp = cvLoadImage("M:\\PhotoAlbum\\pictures\\DSCN2563.JPG");//cvQueryFrame( pCapture );
-	//pImage = cvCreateImage(cvSize(320,240),pTmp->depth,pTmp->nChannels);
-	//cvResize(pTmp,pImage);
-	
-	// Initialize video capture
-	//pCapture = cvCaptureFromCAM( CV_CAP_ANY );
+#ifdef YANIV_DEBUGGING
+	isUseCam = false;
+#endif
 	pCapture = NULL;
 	
 	if (isUseCam) 	
@@ -41,7 +39,7 @@ int initCapture(bool isUseCam,int CAM_ID)
 	} else 	{
 
 
-		static const string video_fn = "G:\\projects\\Movie.wmv";//yl1.avi";
+		static const string video_fn = "G:\\projects\\test_input2.avi";//yl1.avi";
 		static const double start_min = 0; 
 		static const double start_sec = 0; 
 		

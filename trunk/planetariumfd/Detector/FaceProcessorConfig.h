@@ -23,7 +23,7 @@ const char SECTION_CONFIG[] = "config";
 
 int MIN_FRAMES_FOR_VIDEO = 12;
 int FACE_VIDEO_SIZE = 150;
-int MAX_IMAGES_SAVED_PER_THREAD = 1;
+int MAX_JPG_IMAGES_SAVED_PER_THREAD = 1;
 
 float FPS_SPEEDUP_FACTOR = 1.0f;
 //each X frames, time is sampled to correct FPS when video writing
@@ -62,9 +62,9 @@ bool initConfig(const string& configFilename = DEFAULT_CONFIG_FILENAME){
 	getIniValue(configFilename,SECTION_CONFIG,
 				"MIN_FRAMES_FOR_VIDEO",12,MIN_FRAMES_FOR_VIDEO);
 	getIniValue(configFilename,SECTION_CONFIG,
-				"FACE_VIDEO_SIZE",150,FACE_VIDEO_SIZE);
+				"FACE_VIDEO_SIZE",200,FACE_VIDEO_SIZE);
 	getIniValue(configFilename,SECTION_CONFIG,
-				"MAX_IMAGES_SAVED_PER_THREAD",1,MAX_IMAGES_SAVED_PER_THREAD);
+				"MAX_JPG_IMAGES_SAVED_PER_THREAD",1,MAX_JPG_IMAGES_SAVED_PER_THREAD);
 	getIniValue(configFilename,SECTION_CONFIG,
 				"FPS_SPEEDUP_FACTOR",1.0f,FPS_SPEEDUP_FACTOR);
 	getIniValue(configFilename,SECTION_CONFIG,
