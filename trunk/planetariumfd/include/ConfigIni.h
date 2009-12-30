@@ -14,3 +14,9 @@ using namespace std;
 */
 bool getIniValue(string filename,string section,string key,string defultValue,string& value);
 bool getIniValue(LPCSTR filename,LPCSTR section,LPCSTR key,LPCSTR defultValue,string& value);
+
+bool getIniValue(string filename,string section,string key,int    defultValue,  int& value);
+bool getIniValue(string filename,string section,string key,float  defultValue,float& value);
+
+
+
