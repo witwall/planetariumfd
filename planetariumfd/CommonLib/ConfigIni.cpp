@@ -80,3 +80,24 @@ bool getIniValue(string filename,string section,string key,string defultValue,st
 	return true;
 
 }
+
+
+#include <cstdio>
+
+bool getIniValue(string filename,string section,string key,int defultValue,int& value){
+	string value_default_str,value_str;
+	if (getIniValue(filename,section,key,value_default_str,value_str))
+		if (sscanf_s(value_str.c_str(),"%d",&value,value_str.length()) == 1) //cant parse int
+			return true;
+	value = defultValue;
+	return false;
+}
+bool getIniValue(string filename,string section,string key,float defultValue,float& value){
+	string value_default_str,value_str;
+	if (getIniValue(filename,section,key,value_default_str,value_str))
+		if (sscanf_s(value_str.c_str(),"%f",&value,value_str.length()) == 1)  //can't parse float
+			return true;
+	value = defultValue;
+	return false;
+}
+		

@@ -5,6 +5,7 @@
 #include <iostream>
 #include "RegisterOutput.h"
 
+#include "ConfigIni.h"
 using namespace std;
 //For video:
 //http://HOST/planetariumsvc/srcAdded.php?name=1872364871734&type=video&subtype=avi
@@ -14,7 +15,19 @@ using namespace std;
 
 const string HOST = "localhost";
 
+bool inited = false;
+string SERVER_URL;
+
+void init() {
+	getIniValue("face_detect.ini","server",
+				"SERVER_URL","http://localhost/planetariumsvc/srcAdded.php",SERVER_URL);
+	inited = true;
+}
+
+
 int registerOutputFile(const std::string& vidFile) {
+	if (!inited) 
+		init();
 	if (vidFile.empty())
 		throw std::exception("blank file name given!");
 	int dotLoc = (int)vidFile.length() -1;
@@ -35,7 +48,7 @@ int registerOutputFile(const std::string& vidFile) {
 
 
 	ostringstream oss;
-	oss << "http://" << HOST << "/planetariumsvc/srcAdded.php?" 
+	oss << SERVER_URL << '?' 
 		<< "name=" << strippedFileName << '&'
 		<< "type=" << type <<'&'
 		<< "subtype=" << extension ;

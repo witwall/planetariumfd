@@ -98,5 +98,107 @@ public:
 };
 
 
+// Routine peforms linear convolution by straight forward calculation
+// calculates  z= x convolve y
+// Written by Clay S. Turner
+//
+// inputs:
+//  X  array of data comprising vector #1
+//  Y  array of data comprising vector #2
+//  Z  pointer to place to save resulting data - needs to be lenx+leny-1 long
+//  lenx  # of items in vector 1
+//  leny  # of items in vector 2
+
+template <typename T>
+void LinearConvolution(T X[],T Y[], T Z[], int lenx, int leny)
+{
+	T *zptr,*xptr,*yptr,sum;
+	int lenz;
+	int i,n,n_lo,n_hi;
+
+	lenz=lenx+leny-1;
+
+	zptr=Z;
+
+	for (i=0;i<lenz;i++) 
+	{
+		sum = 0.0;
+		n_lo = (0>(i-leny+1)) ? 0      : i-leny+1;
+		n_hi = (lenx-1<i    ) ? lenx-1 : i;
+		xptr = X+n_lo;
+		yptr = Y+i-n_lo;
+		for (n=n_lo;n<=n_hi;n++) 
+		{
+			sum += *xptr * *yptr;
+			xptr++;
+			yptr--;
+		}
+		*zptr = sum;
+		zptr++;
+	}
+}
+//void LinearConvolution(Face X[],float Y[], Face Z[], int lenx, int leny)
+//{
+//	Face *zptr,*xptr,*yptr,sum;
+//	int lenz;
+//	int i,n,n_lo,n_hi;
+//
+//	lenz=lenx+leny-1;
+//
+//	zptr=Z;
+//
+//	for (i=0;i<lenz;i++) 
+//	{
+//		sum = 0.0;
+//		n_lo = (0>(i-leny+1)) ? 0      : i-leny+1;
+//		n_hi = (lenx-1<i    ) ? lenx-1 : i;
+//		xptr = X+n_lo;
+//		yptr = Y+i-n_lo;
+//		for (n=n_lo;n<=n_hi;n++) 
+//		{
+//			sum += *xptr * *yptr;
+//			xptr++;
+//			yptr--;
+//		}
+//		*zptr = sum;
+//		zptr++;
+//	}
+//}
+
+
+
+// output z the size of x:
+template <typename T>
+void LinearConvolution2(T X[],T Y[], T Z[], int lenx, int leny)
+{
+	T *zptr,*xptr,*yptr,sum;
+	int lenz;
+	int i,n,n_lo,n_hi;
+
+	lenz=lenx+leny-1;
+
+	zptr=Z;
+
+	for (i=0;i<lenz;i++) 
+	{
+		sum = 0.0;
+		n_lo = (0>(i-leny+1)) ? 0      : i-leny+1;
+		n_hi = (lenx-1<i    ) ? lenx-1 : i;
+		xptr = X+n_lo;
+		yptr = Y+i-n_lo;
+		for (n=n_lo;n<=n_hi;n++) 
+		{
+			sum += *xptr * *yptr;
+			xptr++;
+			yptr--;
+		}
+		*zptr = sum;
+		zptr++;
+	}
+}
+
+
+
+
 
 #endif

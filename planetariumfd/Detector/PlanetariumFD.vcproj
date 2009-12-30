@@ -27,7 +27,7 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
-				CommandLine="copy &quot;..\libCurl\7.19.3-win32-ssl-msvc\src\DLL-$(ConfigurationName)\*.dll&quot;  $(OutDir)&#x0D;&#x0A;copy &quot;..\\libCurl\7.19.3-win32-ssl-msvc\openLDAP.dll&quot;  $(OutDir)&#x0D;&#x0A;rem copy D:\Projects\OpenCV_CMAKE_BIN\bin\debug\*.dll $(OutDir)&#x0D;&#x0A;rem copy ..\\libCurl\7.19.3-win32-ssl-msvc\lib\debug\*.dll  $(OutDir)&#x0D;&#x0A;"
+				CommandLine="copy &quot;..\\libCurl\7.19.3-win32-ssl-msvc\lib\release\*.dll&quot;  $(OutDir)&#x0D;&#x0A;copy &quot;..\\libCurl\7.19.3-win32-ssl-msvc\*.dll&quot;  $(OutDir)&#x0D;&#x0A;&#x0D;&#x0A;"
 				Outputs="$(OutDir)"
 			/>
 			<Tool
@@ -108,7 +108,7 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
-				CommandLine="copy &quot;..\\libCurl\7.19.3-win32-ssl-msvc\lib\release\*.dll&quot;  $(OutDir)&#x0D;&#x0A;copy &quot;..\\libCurl\7.19.3-win32-ssl-msvc\openLDAP.dll&quot;  $(OutDir)&#x0D;&#x0A;"
+				CommandLine="copy &quot;..\\libCurl\7.19.3-win32-ssl-msvc\lib\release\*.dll&quot;  $(OutDir)&#x0D;&#x0A;copy &quot;..\\libCurl\7.19.3-win32-ssl-msvc\*.dll&quot;  $(OutDir)&#x0D;&#x0A;&#x0D;&#x0A;"
 				Outputs="$(OutDir)"
 			/>
 			<Tool
@@ -201,10 +201,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\FaceThread.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\PlanetariumFD.cpp"
 				>
 			</File>
@@ -243,6 +239,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\FaceProcessorConfig.h"
+				>
+			</File>
+			<File
 				RelativePath=".\fd_util.h"
 				>
 			</File>
@@ -270,7 +270,7 @@
 			</File>
 		</Filter>
 		<File
-			RelativePath=".\face_22detect.ini"
+			RelativePath=".\face_detect.ini"
 			>
 		</File>
 	</Files>
