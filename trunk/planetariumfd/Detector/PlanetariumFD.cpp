@@ -1,8 +1,10 @@
 // CamshiftWrapperBased.cpp : Defines the entry point for the console application.
 //
 
+
 #include "stdafx.h"
 #include "fd_util.h"
+#include "configini.h"
 #include <climits>
 
 // for debugging:
@@ -33,9 +35,9 @@
 
 //CV_FOURCC('F','L','V','1');
 #define				PFD_VIDEO_OUTPUT_FORMAT				   CV_FOURCC_DEFAULT 
-static const char * PFD_VIDEO_PLAYBACK_FILENAME			= "D:\\projects\\playback.avi";
-static const char * PFD_VIDEO_CROPPED_PLAYBACK_FILENAME = "D:\\projects\\cropped_playback.avi";
-const char * DISPLAY_WINDOW = "DisplayWindow";
+
+string OUTPUT_PLAYBACK_VIDEOS_DIR;
+const char * DISPLAY_WINDOW = "Planetarium 2010 Face Detection (Esc to exit)";
 
 void blabla();
 //// Constants
@@ -58,7 +60,25 @@ CvScalar colorArr[3]= {CV_RGB(255,0,0),
 				       CV_RGB(0,0,255)};
 
 
+double filt[3] = {1,2,1};//,3,3,1};
+const int N = sizeof(filt) / sizeof(double);
 
+void try_conv() {
+	double a[20] = {1,2,3,10,5,6,13,8,9,-1,11,12,7,14,15,16,32,18,19,20};
+	double b[20+N-1];
+	double c[20];
+	double s = 0.0f;
+	for (int i = 0 ; i < N ; ++i)
+		s += filt[i];
+	for (int i = 0 ; i < N ; ++i)
+		filt[i] /=   s;
+
+	LinearConvolution(a,filt,b,20,N);
+	for (int i = 0 ; i < 20 ; ++i)
+		c[i] = b[i+N/2];
+
+
+};
 
 
 
@@ -67,7 +87,7 @@ CvScalar colorArr[3]= {CV_RGB(255,0,0),
 //
 int _tmain(int argc, _TCHAR* argv[])
 {
-
+	//try_conv();
 	if( !initAll() ) 
 		exitProgram(-1);
 
@@ -138,7 +158,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	int fps     = 12;//30;//25;  // or 30
 	int frameW  = 640; // 744 for firewire cameras
 	int frameH  = 480; // 480 for firewire cameras
-	CvVideoWriter * playbackVidWriter=cvCreateVideoWriter(PFD_VIDEO_PLAYBACK_FILENAME,
+	CvVideoWriter * playbackVidWriter=cvCreateVideoWriter((OUTPUT_PLAYBACK_VIDEOS_DIR + "\\playback.avi").c_str(),
 								PFD_VIDEO_OUTPUT_FORMAT,
 							   fps,cvSize(frameW,frameH),isColor);
 	CvVideoWriter *  croppedVidWriter = 0;
@@ -210,7 +230,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			assert(found);
 			//write 1st sequence if exists to cropped vid
 			if (!croppedVidWriter)
-				croppedVidWriter=cvCreateVideoWriter(PFD_VIDEO_CROPPED_PLAYBACK_FILENAME,
+				croppedVidWriter=cvCreateVideoWriter((OUTPUT_PLAYBACK_VIDEOS_DIR + "\\cropped_playback.avi").c_str(),
 									PFD_VIDEO_OUTPUT_FORMAT,
 	 						   fps,cvSize(max_x-min_x,max_y-min_y),isColor);
 			assert(croppedVidWriter);
@@ -245,22 +265,41 @@ int _tmain(int argc, _TCHAR* argv[])
 	//-----------------------------------------------------------
 	//-----------------------------------------------------------
 }
-
-const string OPENCV_ROOT = "D:\\Projects\\OpenCV\\latest_tested_snapshot\\opencv";
+string OPENCV_ROOT = "not initialized";
 //////////////////////////////////
 // initAll()
 //
+int cam_id = CV_CAP_ANY;
+int initConfiguration()
+{
+	getIniValue("face_detect.ini","main","CAM_ID",CV_CAP_ANY,cam_id);
+	
+	if (!getIniValue("face_detect.ini","main","OPENCV_ROOT","not initialized",OPENCV_ROOT)){
+		cerr << "Can't extract location of opencv data files from ini file" << endl;
+		return 0;
+	}
+
+	if (!getIniValue("face_detect.ini","main","OUTPUT_PLAYBACK_VIDEOS_DIR","not initialized",OUTPUT_PLAYBACK_VIDEOS_DIR)){
+		cerr << "Can't extract location of ouptut *playback* videos (not the faces videos dir)!"  << endl;
+		return 0;
+	}		
+	return 1;
+}
 int initAll()
 {
-	cout << "Use webcam? (Y/N)" <<endl;
-	
-	char cc = fgetc(stdin);
-	if( !initCapture(cc == 'Y' || cc == 'y') ) 
+	initConfiguration();
+
+//	cout << "Use webcam? (Y/N)" <<endl;
+//
+//	char cc = fgetc(stdin);
+	if( !initCapture(true)) //!initCapture(cc == 'Y' || cc == 'y',cam_id) ) 
 		return 0;
 
 	if( !initFaceDet((OPENCV_ROOT + "/data/haarcascades/haarcascade_frontalface_default.xml").c_str()))
+	{
+		cerr << "failed initFaceDet with" << OPENCV_ROOT << "/data/haarcascades/haarcascade_frontalface_default.xml" << endl;
 		return 0;
-
+	}
 	// Startup message tells user how to begin and how to exit
 	printf( "\n********************************************\n"
 	        "To exit, click inside the video display,\n"
@@ -327,45 +366,3 @@ bool captureVideoFrame()
 	}
 	return true;
 }
-#include <windows.h>
-CRITICAL_SECTION blabla_cs;
-DWORD WINAPI peridiocPrint(LPVOID param){
-//	int data = *(int*)param;
-	static int ppcnt = 0;
-	int myid = ppcnt++;
-	const char * data = *(const char**) param;
-	int cnt = 0;
-	while(true) {
-		cs_locker locker(&blabla_cs);
-		for (int i = 0 ; i < 10 ; ++i)
-		{
-			cout << /*__FUNCTION__ << ':' << ++cnt <<   ':' <<*/ myid << /*'\t' << data <<*/ endl;
-			Sleep(50);
-		}
-		cout << endl;
-		Sleep(1000);
-	}
-}
-
-
-void blabla() {
-	InitializeCriticalSection(&blabla_cs);
-	//All thread functions must have this prototype:
-	//DWORD WINAPI threadfunc(LPVOID param);
-	//int param = 317;
-	const char * param = "Hello world";
-	LPDWORD threadID = 0;
-	for (int i = 0 ; i < 2 ; ++i)
-	{
-		HANDLE h = CreateThread(NULL, //LPSECURITY_ATTRIBUTES secAttr,
-						 0,//SIZE_T stackSize,
-						 &peridiocPrint,//LPTHREAD_START_ROUTINE threadFunc,
-						 &param,//LPVOID param,
-						 0,//DWORD flags,
-						 threadID//, LPDWORD threadID);
-						 );
-		cout << "threadID:" << threadID << " will execute peridiocPrint() " << endl;
-	}
-}
-
-

@@ -23,7 +23,7 @@ IplImage * pImage;
 //////////////////////////////////
 // initCapture()
 //
-int initCapture(bool isUseCam)
+int initCapture(bool isUseCam,int CAM_ID)
 {
 	ftracker f(__FUNCTION__);
 	//IplImage * pTmp = cvLoadImage("M:\\PhotoAlbum\\pictures\\DSCN2563.JPG");//cvQueryFrame( pCapture );
@@ -32,11 +32,12 @@ int initCapture(bool isUseCam)
 	
 	// Initialize video capture
 	//pCapture = cvCaptureFromCAM( CV_CAP_ANY );
-
+	pCapture = NULL;
+	
 	if (isUseCam) 	
 	{
 		cout << "Will capture from webcam" << endl;
-		pCapture = cvCaptureFromCAM(3); //"	index – Index of the camera to be used. If there is only one camera or it does not matter what camera is used -1 may be passed."
+		pCapture = cvCaptureFromCAM(CAM_ID); //"	index – Index of the camera to be used. If there is only one camera or it does not matter what camera is used -1 may be passed."
 	} else 	{
 
 
@@ -80,6 +81,7 @@ IplImage * nextVideoFrame()
 	//IplImage * pVideoFrame = cvCreateImage(cvSize(320,240),pSource->depth,pSource->nChannels);
 	//cvResize(pSource,pVideoFrame);
 	//cvResize( const CvArr* I, CvArr* J, int interpolation=CV_INTER_LINEAR );
+
 
 	IplImage * pVideoFrame = cvQueryFrame( pCapture );
 	if( !pVideoFrame )
