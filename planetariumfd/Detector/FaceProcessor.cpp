@@ -46,6 +46,7 @@ CRITICAL_SECTION gHistoryCS;
 CRITICAL_SECTION gThreadsCS;
 
 
+int g_frame_width = -1 ,g_frame_height = -1;
 //CvSeq* gFacesCurrentFrameList = NULL; //faces above threshold in current frame
 
 
@@ -73,7 +74,7 @@ void date_and_time2string(string & str);
 int deleteThreadFromgThreads_beingSerialized(FDFaceThread * pTh);
 bool addMissingFrames(std::list<Face> & face_list);
 void smoothFaceSeries(std::list<Face> & face_list);
-
+void smoothFaceSeries2(std::list<Face> & face_list,int frame_width,int frame_height);
 
 // ===================================================
 // ============ End   config =========================
@@ -511,9 +512,17 @@ FDHistoryEntry& addToHistory(IplImage * pImg,CvSeq* pSeqIn,frame_id_t frame_id){
 	
 	FDHistoryEntry toAdd(pVideoFrameCopy,pCopyInSeq,frame_id);
 	
+	if (gHistory.empty()){
+		//initialization done once
+		g_frame_width  = pVideoFrameCopy->width;
+		g_frame_height = pVideoFrameCopy->height;
+	}
+
+
 	EnterCriticalSection(&gHistoryCS);
 	gHistory.push_back(toAdd);
 	LeaveCriticalSection(&gHistoryCS);
+	
 
 	return gHistory.back();
 }
@@ -886,10 +895,36 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename,bool isSmoot
 	if (isSmoothVideo)
 	{
 		addMissingFrames(my_faces);
-		Sleep(50);
+#ifndef USE_NEW_SMOOTH
 		smoothFaceSeries(my_faces);
+#else
+		try {
+			smoothFaceSeries2(my_faces,g_frame_width,g_frame_height);
+		}
+		catch (const exception &e) {
+			cerr << "failed smoothing:" <<  e.what() << endl;
+			return false;
+		}
+#endif
 		Sleep(50);
 	}
+
+	//output video width and height
+	int owidth,oheight;
+	if (FACE_VIDEO_SIZE) {
+		owidth = oheight = FACE_VIDEO_SIZE;
+	} else {
+		owidth  = my_faces.front().width;
+		oheight = my_faces.front().height;
+
+		for(face_list_t::iterator faces_itr = my_faces.begin() ; faces_itr != my_faces.end() ; ++faces_itr){
+			if (owidth < faces_itr->width)
+				owidth = faces_itr->width;
+			if (oheight < faces_itr->height)
+				oheight = faces_itr->height;
+		}
+	}
+
 
 	face_list_t::iterator    faces_itr   = my_faces.begin();
 	////TODO mylocker(pFacesMutex) - just to be on the safe side for future changes..
@@ -910,7 +945,7 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename,bool isSmoot
 	filename << base_ofilename << "__" << my_series_num << ((isSmoothVideo) ? "_smoothed" : "") << ".avi";
 	string filename_with_path = oPath + "\\" + filename.str();
 	
-	IplImage * p = cvCreateImage(cvSize(FACE_VIDEO_SIZE,FACE_VIDEO_SIZE),history_itr->pFrame->depth,
+	IplImage * p = cvCreateImage(cvSize(owidth,oheight),history_itr->pFrame->depth,
 													  history_itr->pFrame->nChannels);
 	if (!p) {
 		cerr << "Can't alloc image in " << __FUNCTION__ << endl;
@@ -926,7 +961,7 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename,bool isSmoot
 		fps = 2.0;
 	CvVideoWriter * vid_writer = cvCreateVideoWriter(filename_with_path.c_str(),
 													 CV_FOURCC_DEFAULT,//VIDEO_OUTPUT_FORMAT,
-	 						    fps,cvSize(FACE_VIDEO_SIZE,FACE_VIDEO_SIZE),1);
+	 						    fps,cvSize(owidth,oheight),1);
 #ifdef DEBUGGING_VID_SIZE
 	debug_log << filename_with_path.c_str();
 	debug_log << "FPS=" << fps << "," << "VIDEO_OUTPUT_FORMAT=" << VIDEO_OUTPUT_FORMAT << endl;
@@ -988,8 +1023,14 @@ bool saveThreadVideo(FDFaceThread & thread ,string & outputFilename,bool isSmoot
 
 }
 
+#ifdef USE_NEW_SMOOTH
+float SIZE_FILT[11] = {1,1,2,2,2,2,2,2,2,1,1};//{1,4,6,4,1};
+float LOCATION_FILT[3] = {1,2,1};
+#else
+//when !USE_NEW_SMOOTH, used for both size and location
 float SIZE_FILT[7] = {1,1,1,1,1,1,1};//{1,4,6,4,1};
-float LOCATION_FILT[3] = {1,1,1};
+float LOCATION_FILT[3] = {1,2,1};
+#endif
 
 void smoothFaceSeries(std::list<Face> & face_list) {
 	float * const in  = new float[face_list.size()];
@@ -1035,7 +1076,7 @@ void smoothFaceSeries(std::list<Face> & face_list) {
 		std::list<Face>::iterator itr = face_list.begin();
 		for (float * pin = in ; pin < in_end ; )
 			*pin++ = (float)(itr++)->height;
-		LinearConvolutionSame(in,LOCATION_FILT,out,(int)face_list.size(),(int)sizeof(LOCATION_FILT)/sizeof(float));
+		LinearConvolutionSame(in,SIZE_FILT,out,(int)face_list.size(),(int)sizeof(LOCATION_FILT)/sizeof(float));
 		
 		itr = face_list.begin();
 		for (float * pout = out ; pout < out_end ; )
@@ -1172,12 +1213,95 @@ void FDFaceThread::serializeToLog(std::ostream &o)
 }
 
 
-
-
 void FDFaceThread::pruneFacesList() {
 	//TODO mylocker(_pFacesLock);
 	while((int)_pFaces.size() > MAX_THREAD_HISTORY_SIZE)
 		_pFaces.pop_front();
+}
+
+// this version uses one filter to smooth image centers 
+// and another one to smooth frame sizes around these centers
+// allowing stronger smoothing on size which is relatively constant
+void smoothFaceSeries2(std::list<Face> & face_list,int frame_width = INT_MAX,int frame_height  = INT_MAX) {
+	float * const in  = new float[face_list.size()];
+	float * const  out = new float[face_list.size()];
+	if (!in || !out) throw exception("allocation failed when smoothing");
+
+	float * const in_end = in + face_list.size();
+	float * const out_end = out + face_list.size();
+
+	//centers are smoothed using LOCATION_FILT
+	{
+		std::list<Face>::iterator itr = face_list.begin();
+		for (float * pin = in ; pin < in_end ; ++itr, ++pin )
+			*pin = (float)itr->x + (float)(itr->width)/2.0f; //x center
+		LinearConvolutionSame(in,LOCATION_FILT,out,(int)face_list.size(),(int)sizeof(SIZE_FILT)/sizeof(float));
+		
+		itr = face_list.begin();
+		for (float * pout = out ; pout < out_end ; ++itr,++pout)
+			itr->x = my_round(*pout - ((float)itr->width)/2.0f);
+		Sleep(50);
+	}
+
+	{
+		std::list<Face>::iterator itr = face_list.begin();
+		for (float * pin = in ; pin < in_end ; ++itr, ++pin )
+			*pin = (float)(itr)->y + (float)((itr)->height)/2.0f; //y center
+		LinearConvolutionSame(in,LOCATION_FILT,out,(int)face_list.size(),(int)sizeof(SIZE_FILT)/sizeof(float));
+		
+		itr = face_list.begin();
+		for (float * pout = out ; pout < out_end ; ++itr,++pout)
+			itr->y = my_round(*pout - ((float)itr->height)/2.0f);
+		Sleep(50);
+	}
+
+
+	{
+		std::list<Face>::iterator itr = face_list.begin();
+		for (float * pin = in ; pin < in_end ; ++itr, ++pin )
+			*pin = (float)(itr)->width;
+		LinearConvolutionSame(in,SIZE_FILT,out,(int)face_list.size(),(int)sizeof(SIZE_FILT)/sizeof(float));
+		
+		itr = face_list.begin();
+		for (float * pout = out ; pout < out_end ; ++itr,++pout)
+		{
+			//adjust x by new width
+			itr->x -= my_round((*pout - (float)itr->width)/2.0f);
+			itr->width = my_round(*pout);
+			if (itr->x < 0 || itr->x + itr->width >= frame_width) {	// this might actually happen in real images
+				delete[] in;
+				delete[] out;
+				throw exception("Size smoothing created an out of bounds window on X");
+			}
+		}
+		Sleep(50);
+	}
+
+
+
+	{
+		std::list<Face>::iterator itr = face_list.begin();
+		for (float * pin = in ; pin < in_end ; ++itr, ++pin )
+			*pin= (float)(itr)->height;
+		LinearConvolutionSame(in,SIZE_FILT,out,(int)face_list.size(),(int)sizeof(LOCATION_FILT)/sizeof(float));
+		
+		itr = face_list.begin();
+		for (float * pout = out ; pout < out_end ; ++itr,++pout)
+		{
+			//adjust y by new height
+			itr->y -= my_round((*pout - (float)itr->height)/2.0f);
+			itr->height = my_round(*pout);
+			if (itr->y < 0 || itr->y + itr->height >= frame_height) {	// this might actually happen in real images
+				delete[] in;
+				delete[] out;
+				throw exception("Size smoothing created an out of bounds window on Y");
+			}
+		}
+		Sleep(50);
+	}
+
+	delete[] in;
+	delete[] out;
 }
 
 //with smoothing

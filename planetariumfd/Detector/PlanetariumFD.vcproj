@@ -212,10 +212,6 @@
 				RelativePath=".\stdafx.cpp"
 				>
 			</File>
-			<File
-				RelativePath=".\transformations.cpp"
-				>
-			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
