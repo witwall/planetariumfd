@@ -54,6 +54,11 @@ string sMediaPath;
 string sFfmpegExePath = "";
 string sFfmpegDir = "";
 
+string sql_hostname;
+string sql_user;
+string sql_password;
+string sql_db_name;
+
 bool query(RowsList_t& rows,unsigned int &num_fields ){	
 
 	MYSQL *mysql = NULL; 
@@ -303,10 +308,10 @@ bool update(const StrList_t& row){
 	} 
 
 	if (!mysql_real_connect(mysql,       /* MYSQL structure to use */ 
-		"localhost", /* server hostname or IP address */  
-		"root",      /* mysql user */ 
-		"",          /* password */ 
-		"planetariumfd",      /* default database to use, NULL for none */ 
+		sql_hostname.c_str(), /* server hostname or IP address */  
+		sql_user.c_str(),      /* mysql user */ 
+		sql_password.c_str(),          /* password */ 
+		sql_db_name.c_str(),      /* default database to use, NULL for none */ 
 		0,           /* port number, 0 for default */ 
 		NULL,        /* socket file or named pipe name */ 
 		CLIENT_FOUND_ROWS /* connection flags */ )) { 
@@ -348,7 +353,7 @@ bool update(const StrList_t& row){
 	return EXIT_SUCCESS; 
 
 }
-
+#include <iostream>
 bool initConfig(){
 	if (!getIniValue(CONFIG_FILE_NAME,
 					 SECTION_CONFIG,
@@ -369,6 +374,16 @@ bool initConfig(){
 		printf("Can not find media directory configuration");
 		return false;
 	}
+
+	getIniValue(CONFIG_FILE_NAME,SECTION_CONFIG,"sql_hostname","uninitialized",sql_hostname);
+	getIniValue(CONFIG_FILE_NAME,SECTION_CONFIG,"sql_user"	  ,"uninitialized",sql_user);
+	getIniValue(CONFIG_FILE_NAME,SECTION_CONFIG,"sql_password",""             ,sql_password);
+	getIniValue(CONFIG_FILE_NAME,SECTION_CONFIG,"sql_db_name" ,"uninitialized",sql_db_name);
+	std::cout << "sql_hostname = \"" << sql_hostname << "\"" << endl
+			  << "sql_user     = \"" << sql_user	 << "\"" << endl
+		      << "sql_password = \"" << sql_password << "\"" << endl
+		      << "sql_db_name  = \"" << sql_db_name  << "\"" << endl;
+
 	sFfmpegExePath = sFfmpegDir;
 	sFfmpegExePath += "\\ffmpeg.exe";
 	
