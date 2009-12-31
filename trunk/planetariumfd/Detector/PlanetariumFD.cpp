@@ -111,7 +111,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		++frame_count;
 
 		CvSeq* pSeq = 0;
-		/*int count = */detectFaces(pfd_pVideoFrameCopy,&pSeq);
+		detectFaces(pfd_pVideoFrameCopy,&pSeq);
 		
 		//Do some filtration of pSeq into pSeqOut, based on history etc,
 		//update data structures (history ,face threads etc.)s
@@ -137,7 +137,6 @@ int _tmain(int argc, _TCHAR* argv[])
 		cvReleaseImage(&pfd_pVideoFrameCopy);
 	
 	} //end input while
-
 	cout << "==========================================================" << endl;
 	cout << "========== Input finished ================================" << endl;
 	cout << "==========================================================" << endl << endl;
