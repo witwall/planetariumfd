@@ -71,10 +71,10 @@ bool query(RowsList_t& rows,unsigned int &num_fields ){
 	} 
 
 	if (!mysql_real_connect(mysql,       /* MYSQL structure to use */ 
-		"localhost", /* server hostname or IP address */  
-		"root",      /* mysql user */ 
-		"",          /* password */ 
-		"planetariumfd",      /* default database to use, NULL for none */ 
+		sql_hostname.c_str(), /* server hostname or IP address */  
+		sql_user.c_str(),      /* mysql user */ 
+		sql_password.c_str(),          /* password */ 
+		sql_db_name.c_str(),      /* default database to use, NULL for none */ 
 		0,           /* port number, 0 for default */ 
 		NULL,        /* socket file or named pipe name */ 
 		CLIENT_FOUND_ROWS /* connection flags */ )) { 

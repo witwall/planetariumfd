@@ -40,7 +40,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="&quot;D:\Projects\OpenCV\planetariumFD_Yaniv\mysql-connector-c\include&quot;"
+				AdditionalIncludeDirectories="..\include;&quot;D:\Projects\OpenCV\planetariumFD_Yaniv\mysql-connector-c\include&quot;"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -61,9 +61,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="mysqlclient.lib libmysql.lib"
+				AdditionalDependencies="mysqlclient.lib libmysql.lib CommonLib.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="&quot;D:\Projects\OpenCV\planetariumFD_Yaniv\mysql-connector-c\lib&quot;"
+				AdditionalLibraryDirectories="&quot;..\CommonLib\$(configurationName)&quot;;&quot;..\mysql-connector-c\lib&quot;"
 				IgnoreAllDefaultLibraries="false"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -108,7 +108,7 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
-				CommandLine="copy converter.ini $(OutDir)"
+				CommandLine="copy converter.ini $(OutDir)&#x0D;&#x0A;"
 				Outputs="converter.ini"
 			/>
 			<Tool
@@ -145,7 +145,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="mysqlclient.lib libmysql.lib CommonLib.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="..\CommonLib\Release;&quot;D:\Projects\OpenCV\planetariumFD_Yaniv\mysql-connector-c\lib&quot;"
+				AdditionalLibraryDirectories="&quot;..\CommonLib\$(configurationName)&quot;;&quot;..\mysql-connector-c\lib&quot;"
 				IgnoreAllDefaultLibraries="false"
 				GenerateDebugInformation="true"
 				SubSystem="1"
