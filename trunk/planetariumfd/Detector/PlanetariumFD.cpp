@@ -290,7 +290,7 @@ int initAll()
 //	cout << "Use webcam? (Y/N)" <<endl;
 //
 //	char cc = fgetc(stdin);
-	if( !initCapture(true)) //!initCapture(cc == 'Y' || cc == 'y',cam_id) ) 
+	if( !initCapture(true,cam_id)) //!initCapture(cc == 'Y' || cc == 'y',cam_id) ) 
 		return 0;
 
 	if( !initFaceDet((OPENCV_ROOT + "/data/haarcascades/haarcascade_frontalface_default.xml").c_str()))
